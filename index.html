@@ -430,6 +430,13 @@
             openChatListButton.classList.add('hidden');
             userLogoutButton.classList.remove('hidden');
             updateAdminControls(false); // Always hide for user
+
+            // ================== FIX START ==================
+            // Set the currentRoomId for the user.
+            // The user's room ID is the same as their user ID. This allows them to send messages.
+            currentRoomId = currentUserId;
+            // =================== FIX END ===================
+
             socket.emit('user:join', { userId: currentUserId, displayName: displayName });
         }
         
