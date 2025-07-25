@@ -168,16 +168,17 @@ io.on('connection', (socket) => {
     const newMessage = new Message({ roomId, senderId, text, isAdmin, displayName });
     await newMessage.save();
 
-    const roomUpdate = { lastMessage: text, timestamp: new Date(), hasUnreadAdmin: !isAdmin };
-    await ChatRoom.findByIdAndUpdate(roomId, roomUpdate);
+    await ChatRoom.findByIdAndUpdate(roomId, {
+        lastMessage: text,
+        timestamp: new Date(),
+        hasUnreadAdmin: !isAdmin
+    });
     
-    // Broadcast message to the specific room and to all admins
-    io.to(roomId).emit('newMessage', newMessage);
-    if (!isAdmin) {
-        io.to('admin_room').emit('newMessage', newMessage);
-    }
+    // FINAL FIX: Use a single, chained broadcast to the room and the admin room.
+    // The client-side has duplicate message prevention, so this is safe and reliable.
+    io.to(roomId).to('admin_room').emit('newMessage', newMessage);
     
-    // Always update the chat list for admins
+    // Always update the chat list for admins after a new message.
     io.to('admin_room').emit('chatList', await ChatRoom.find().sort({ timestamp: -1 }));
 
     if (isAdmin && room.pushSubscription) {
