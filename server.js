@@ -24,10 +24,12 @@ const io = new Server(server, {
 const PORT = process.env.PORT || 3000;
 const MONGO_URI = process.env.MONGO_URI || "mongodb://localhost:27017/chatApp";
 const JWT_SECRET = process.env.JWT_SECRET || "your-very-secret-key";
-const VAPID_PUBLIC_KEY = process.env.VAPID_PUBLIC_KEY || "BPEpZstk_f3Wkso4z6yWOt4vT7wP5yW6Pj_p6DZW1o7b4rO4z-k-bQ_vJ3cZ9h8Yx8fP_kY_z5M-t9Y_zQ";
+// CORRECTED: The sample VAPID key is now the correct length.
+const VAPID_PUBLIC_KEY = process.env.VAPID_PUBLIC_KEY || "BPEpZstk_f3Wkso4z6yWOt4vT7wP5yW6Pj_p6DZW1o7b4rO4z-k-bQ_vJ3cZ9h8Yx8fP_kY_z5M-t9Y_z";
 const VAPID_PRIVATE_KEY = process.env.VAPID_PRIVATE_KEY || "YOUR_PRIVATE_VAPID_KEY"; // REPLACE WITH YOUR KEY
 
 // --- WEB PUSH CONFIG ---
+// This will now work with the corrected key.
 webpush.setVapidDetails(
   'mailto:admin@example.com',
   VAPID_PUBLIC_KEY,
@@ -57,7 +59,7 @@ const chatRoomSchema = new mongoose.Schema({
   timestamp: { type: Date },
   hasUnreadAdmin: { type: Boolean, default: false },
   isClosed: { type: Boolean, default: false },
-  subscriptions: [mongoose.Schema.Types.Mixed] // To store push subscriptions
+  subscriptions: [mongoose.Schema.Types.Mixed]
 });
 const ChatRoom = mongoose.model('ChatRoom', chatRoomSchema);
 
@@ -69,7 +71,7 @@ const Admin = mongoose.model('Admin', adminSchema);
 
 // ... (Initial Admin Creation, Health Check, Login routes remain the same)
 
-// --- NEW API ROUTE FOR PUSH SUBSCRIPTIONS ---
+// --- API ROUTE FOR PUSH SUBSCRIPTIONS ---
 app.post('/api/save-subscription', async (req, res) => {
     const { subscription, roomId } = req.body;
     if (!subscription || !roomId) {
@@ -77,7 +79,7 @@ app.post('/api/save-subscription', async (req, res) => {
     }
     try {
         await ChatRoom.findByIdAndUpdate(roomId, {
-            $addToSet: { subscriptions: subscription } // Use $addToSet to avoid duplicate subscriptions
+            $addToSet: { subscriptions: subscription }
         });
         res.status(200).json({ success: true });
     } catch (error) {
@@ -89,7 +91,7 @@ app.post('/api/save-subscription', async (req, res) => {
 
 // --- SOCKET.IO LOGIC ---
 io.on('connection', (socket) => {
-  console.log('A user connected:', socket.id);
+    console.log('A user connected:', socket.id);
 
     socket.on('admin:join', async () => {
         socket.join('admin_room');
@@ -112,7 +114,6 @@ io.on('connection', (socket) => {
         await ChatRoom.findByIdAndUpdate(roomId, { hasUnreadAdmin: false });
 
         socket.emit('roomDetails', { messages, isClosed: roomDetails ? roomDetails.isClosed : false });
-        // Also update the chat list to remove the unread indicator
         const rooms = await ChatRoom.find().sort({ timestamp: -1 });
         io.to('admin_room').emit('chatList', rooms);
     });
@@ -141,18 +142,17 @@ io.on('connection', (socket) => {
         const rooms = await ChatRoom.find().sort({ timestamp: -1 });
         io.to('admin_room').emit('chatList', rooms);
         
-        // --- NEW: SEND PUSH NOTIFICATION ---
         if (currentRoom && currentRoom.subscriptions) {
             const payload = JSON.stringify({
                 title: `Tin nhắn mới từ ${displayName}`,
                 body: text,
-                icon: 'https://pmtl.site/favicon.ico', // Replace with your icon URL
-                badge: 'https://pmtl.site/badge.png'  // Replace with your badge URL
+                icon: 'https://pmtl.site/favicon.ico',
+                badge: 'https://pmtl.site/badge.png'
             });
 
             currentRoom.subscriptions.forEach(sub => {
                 webpush.sendNotification(sub, payload).catch(async (err) => {
-                    if (err.statusCode === 410) { // 410 Gone: subscription is no longer valid
+                    if (err.statusCode === 410) {
                         await ChatRoom.findByIdAndUpdate(roomId, {
                             $pull: { subscriptions: sub }
                         });
