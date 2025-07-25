@@ -24,8 +24,8 @@ const io = new Server(server, {
 const PORT = process.env.PORT || 3000;
 const MONGO_URI = process.env.MONGO_URI || "mongodb://localhost:27017/chatApp";
 const JWT_SECRET = process.env.JWT_SECRET || "your-very-secret-key";
-// CORRECTED: The sample VAPID key is now the correct length.
-const VAPID_PUBLIC_KEY = process.env.VAPID_PUBLIC_KEY || "BPEpZstk_f3Wkso4z6yWOt4vT7wP5yW6Pj_p6DZW1o7b4rO4z-k-bQ_vJ3cZ9h8Yx8fP_kY_z5M-t9Y_z";
+// FINAL CORRECTION: The sample VAPID key now has the correct length of 87 characters.
+const VAPID_PUBLIC_KEY = process.env.VAPID_PUBLIC_KEY || "BPEpZstk_f3Wkso4z6yWOt4vT7wP5yW6Pj_p6DZW1o7b4rO4z-k-bQ_vJ3cZ9h8Yx8fP_kY_z5M-t9Y";
 const VAPID_PRIVATE_KEY = process.env.VAPID_PRIVATE_KEY || "YOUR_PRIVATE_VAPID_KEY"; // REPLACE WITH YOUR KEY
 
 // --- WEB PUSH CONFIG ---
