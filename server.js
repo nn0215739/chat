@@ -77,13 +77,27 @@ createInitialAdmin();
 
 
 // --- API ROUTES ---
+
+// *** MỚI: Endpoint kiểm tra "sức khỏe" của backend ***
+app.get('/api/health', (req, res) => {
+    const dbState = mongoose.connection.readyState;
+    const dbStatus = {
+        0: 'disconnected',
+        1: 'connected',
+        2: 'connecting',
+        3: 'disconnecting'
+    }[dbState] || 'unknown';
+
+    res.json({
+        status: 'ok',
+        timestamp: new Date().toISOString(),
+        mongodb: dbStatus
+    });
+});
+
 app.post('/login', async (req, res) => {
     const { email, password } = req.body;
     
-    // !!! THAY ĐỔI QUAN TRỌNG !!!
-    // Đã loại bỏ dòng kiểm tra email cứng nhắc ở đây.
-    // Giờ đây, nó sẽ tìm bất kỳ email nào trong collection 'admins'.
-
     try {
         const admin = await Admin.findOne({ email });
         if (!admin) {
