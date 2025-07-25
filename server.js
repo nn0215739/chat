@@ -159,7 +159,7 @@ io.on('connection', (socket) => {
     const { roomId, senderId, text, isAdmin, displayName } = data;
     const room = await ChatRoom.findById(roomId);
 
-    if (!room) return; // Don't process messages for deleted rooms
+    if (!room) return; 
 
     if (room.isClosed && !isAdmin) {
         return socket.emit('chatError', 'Cuộc trò chuyện này đã bị khoá. Bạn không thể gửi tin nhắn.');
@@ -171,10 +171,12 @@ io.on('connection', (socket) => {
     const roomUpdate = { lastMessage: text, timestamp: new Date(), hasUnreadAdmin: !isAdmin };
     await ChatRoom.findByIdAndUpdate(roomId, roomUpdate);
 
-    io.to(roomId).to('admin_room').emit('newMessage', newMessage);
+    // FIX: Emit to rooms separately for reliability
+    io.to(roomId).emit('newMessage', newMessage);
+    io.to('admin_room').emit('newMessage', newMessage);
+
     io.to('admin_room').emit('chatList', await ChatRoom.find().sort({ timestamp: -1 }));
 
-    // Send push notification to user if admin replies
     if (isAdmin && room.pushSubscription) {
         const payload = JSON.stringify({
             title: `Phản hồi từ ${displayName}`,
@@ -192,12 +194,10 @@ io.on('connection', (socket) => {
       io.to(roomId).to('admin_room').emit('chat:locked', { roomId, isLocked });
   });
   
-  // FIX: Handle single message deletion
   socket.on('admin:deleteMessage', async ({ messageId, roomId }) => {
       try {
           const deletedMessage = await Message.findByIdAndDelete(messageId);
           if (deletedMessage) {
-              // Notify both user and admin to remove the message from UI
               io.to(roomId).to('admin_room').emit('messageDeleted', messageId);
               
               const lastMsg = await Message.findOne({ roomId }).sort({ timestamp: -1 });
@@ -212,17 +212,12 @@ io.on('connection', (socket) => {
       }
   });
 
-  // NEW: Handle entire conversation deletion
   socket.on('admin:deleteConversation', async ({ roomId }) => {
       try {
           await Message.deleteMany({ roomId: roomId });
           await ChatRoom.findByIdAndDelete(roomId);
-
-          // Notify admin UI to remove the conversation
           io.to('admin_room').emit('conversationDeleted', roomId);
-          // Notify the user their chat has ended
           io.to(roomId).emit('chatEndedByAdmin');
-
       } catch (error) {
           console.error("Error deleting conversation:", error);
       }
@@ -237,6 +232,5 @@ io.on('connection', (socket) => {
 // --- START SERVER AND CONNECT TO DB ---
 server.listen(PORT, () => {
   console.log(`Server is running on port ${PORT}`);
-  // Connect to the database AFTER the server has started
   connectDB();
 });
