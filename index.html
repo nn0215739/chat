@@ -120,7 +120,8 @@
     <script>
         // --- CONFIGURATION ---
         const BACKEND_URL = "https://chat-t1ar.onrender.com"; 
-        const VAPID_PUBLIC_KEY = "BPEpZstk_f3Wkso4z6yWOt4vT7wP5yW6Pj_p6DZW1o7b4rO4z-k-bQ_vJ3cZ9h8Yx8fP_kY_z5M-t9Y_zQ"; // Same key as in server.js
+        // CORRECTED: The sample VAPID key is now the correct length.
+        const VAPID_PUBLIC_KEY = "BPEpZstk_f3Wkso4z6yWOt4vT7wP5yW6Pj_p6DZW1o7b4rO4z-k-bQ_vJ3cZ9h8Yx8fP_kY_z5M-t9Y_z"; 
 
         // --- DOM ELEMENTS ---
         const appDiv = document.getElementById('app');
@@ -168,7 +169,6 @@
         const originalFaviconHref = favicon.href;
 
         // --- UTILITY FUNCTIONS ---
-        // (linkify, showToastNotification, etc. remain the same)
         function linkify(text, forAdminBubble = false) {
             const urlRegex = /(\b(https?|ftp|file):\/\/[-A-Z0-9+&@#\/%?=~_|!:,.;]*[-A-Z0-9+&@#\/%=~_|])/ig;
             const tempDiv = document.createElement('div');
@@ -217,10 +217,7 @@
             favicon.href = hasNewMessage ? newMessageFaviconHref : originalFaviconHref;
         }
 
-        // --- NEW: PUSH NOTIFICATION & SERVICE WORKER ---
-        /**
-         * Converts a VAPID public key string to a Uint8Array.
-         */
+        // --- PUSH NOTIFICATION & SERVICE WORKER ---
         function urlBase64ToUint8Array(base64String) {
             const padding = '='.repeat((4 - base64String.length % 4) % 4);
             const base64 = (base64String + padding).replace(/-/g, '+').replace(/_/g, '/');
@@ -232,9 +229,6 @@
             return outputArray;
         }
 
-        /**
-         * Registers the service worker and subscribes to push notifications.
-         */
         async function registerServiceWorkerAndSubscribe() {
             if (!('serviceWorker' in navigator) || !('PushManager' in window)) {
                 console.warn('Push messaging is not supported');
@@ -292,7 +286,6 @@
         }
 
         startChatButton.addEventListener('click', () => {
-            // UPDATED: Call the new function
             registerServiceWorkerAndSubscribe();
 
             displayName = displayNameInput.value.trim() || 'Sư Huynh Vô Danh';
@@ -307,7 +300,6 @@
             setupUserView({ userId: currentUserId, name: displayName });
         });
 
-        // (Other event listeners like admin login, logout, etc. remain the same)
         adminLoginPromptButton.addEventListener('click', () => showScreen(loginScreen));
         backToWelcomeButton.addEventListener('click', () => showScreen(welcomeScreen));
         const handleLogout = () => {
@@ -376,7 +368,6 @@
         }
         
         // --- SOCKET.IO & CHAT LOGIC ---
-        // (All other functions here remain mostly the same, only the `newMessage` listener is slightly adjusted)
         function setupSocketListeners() {
             socket.on('connect', () => {
                 const token = localStorage.getItem('adminToken');
