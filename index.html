@@ -175,9 +175,9 @@
         const lockIcon = document.getElementById('lock-icon');
         const unlockIcon = document.getElementById('unlock-icon');
         const deleteConversationButton = document.getElementById('delete-conversation-button');
-        const sendMessageButton = document.getElementById('send-message-button'); // New
-        const sendIcon = document.getElementById('send-icon'); // New
-        const loadingSpinner = document.getElementById('loading-spinner'); // New
+        const sendMessageButton = document.getElementById('send-message-button'); 
+        const sendIcon = document.getElementById('send-icon'); 
+        const loadingSpinner = document.getElementById('loading-spinner'); 
 
 
         // Confirmation Modal Elements
@@ -232,7 +232,7 @@
             let iconSvg, bgColor;
             if (type === 'success') {
                 iconSvg = `<svg class="w-6 h-6 text-green-500 flex-shrink-0" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M9 12.75L11.25 15 15 9.75M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>`;
-            } else if (type === 'error') { // New error icon
+            } else if (type === 'error') { 
                 iconSvg = `<svg class="w-6 h-6 text-red-500 flex-shrink-0" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M12 9v3.75m-9.303 3.376c-.866 1.5.174 3.35 1.9 3.35h13.713c1.726 0 2.766-1.85 1.9-3.35L13.737 3.376c-.863-1.5-3.033-1.5-3.896 0L2.697 16.126zM12 15.75h.007v.008H12v-.008z" /></svg>`;
             }
             else {
@@ -268,7 +268,7 @@
             favicon.href = hasNewMessage ? newMessageFaviconHref : originalFaviconHref;
         }
 
-        // New function to show/hide sending state (spinner)
+        // Function to show/hide sending state (spinner)
         function showSendingState(isSending) {
             if (isSending) {
                 sendMessageButton.disabled = true;
@@ -276,7 +276,7 @@
                 loadingSpinner.classList.remove('hidden');
             } else {
                 // Only re-enable if not locked by admin or chat ended
-                if (!isCurrentChatLocked && !messageInput.disabled) { // Check messageInput.disabled to respect chatEndedByAdmin
+                if (!isCurrentChatLocked && !messageInput.disabled) { 
                     sendMessageButton.disabled = false;
                 }
                 sendIcon.classList.remove('hidden');
@@ -346,8 +346,10 @@
             chatListPanel.classList.remove('hidden');
             chatListPanel.classList.add('flex');
             chatWindowPanel.classList.add('hidden');
+            // On desktop, chat window should reappear alongside list
             if (window.innerWidth >= 768) {
-                chatWindowPanel.classList.add('md:flex');
+                chatWindowPanel.classList.remove('hidden');
+                chatWindowPanel.classList.add('flex');
             }
         }
 
@@ -431,22 +433,32 @@
         });
 
         function setupAdminView() {
+            // For admin, always show the chat list panel.
+            // On mobile, it will be 'flex' due to this line.
             chatListPanel.classList.remove('hidden');
-            chatWindowPanel.classList.remove('hidden');
-            
+            chatListPanel.classList.add('flex'); 
+
+            // On mobile, the chat window should initially be hidden for admin until a chat is selected.
+            // On desktop, Tailwind's 'md:flex' will make it visible alongside the chat list.
+            chatWindowPanel.classList.add('hidden'); 
+            if (window.innerWidth >= 768) {
+                chatWindowPanel.classList.remove('hidden');
+                chatWindowPanel.classList.add('flex');
+            }
+
             adminPlaceholder.classList.remove('hidden');
             placeholder.classList.add('hidden');
             messageFooter.classList.add('hidden');
             chatHeaderTitle.textContent = "Bảng điều khiển";
             updateAdminControls(false); // Initially hide buttons
-            openChatListButton.classList.remove('hidden');
+            openChatListButton.classList.remove('hidden'); 
             userLogoutButton.classList.add('hidden');
             socket.emit('admin:join');
         }
 
         function setupUserView() {
             showChatWindow(); // Handles mobile/desktop layout
-            chatListPanel.classList.add('hidden');
+            chatListPanel.classList.add('hidden'); // Ensure chat list is hidden for user view
             
             adminPlaceholder.classList.add('hidden');
             placeholder.classList.remove('hidden');
@@ -550,7 +562,7 @@
             socket.on('chatEndedByAdmin', () => {
                 if (!isAdmin) {
                     messageInput.disabled = true;
-                    sendMessageButton.disabled = true; // Use sendMessageButton
+                    sendMessageButton.disabled = true; 
                     messageInput.placeholder = "Cuộc trò chuyện đã kết thúc.";
                     let endNotice = document.getElementById('end-notice');
                     if (!endNotice) {
@@ -565,8 +577,8 @@
             });
 
             socket.on('chatError', (errorMessage) => {
-                showToastNotification({ title: "Lỗi", text: errorMessage }, 'error'); // Display error toast
-                showSendingState(false); // Ensure loading state is off on error
+                showToastNotification({ title: "Lỗi", text: errorMessage }, 'error'); 
+                showSendingState(false); 
             });
         }
         function renderChatRoomList(rooms) {
@@ -625,7 +637,7 @@
             }
             scrollToBottom();
         }
-        messageForm.addEventListener('submit', async e => { // Added async
+        messageForm.addEventListener('submit', async e => { 
             e.preventDefault();
             const text = messageInput.value.trim();
             if (!text || !currentRoomId || !socket) {
@@ -633,7 +645,7 @@
                 return;
             }
 
-            showSendingState(true); // Show loading state
+            showSendingState(true); 
 
             socket.emit('sendMessage', {
                 roomId: currentRoomId,
@@ -641,12 +653,12 @@
                 text,
                 isAdmin,
                 displayName: isAdmin ? 'Quản trị viên' : displayName
-            }, (response) => { // Add callback for acknowledgment
-                showSendingState(false); // Hide loading state
+            }, (response) => { 
+                showSendingState(false); 
                 if (response && response.status === 'error') {
                     showToastNotification({ title: "Lỗi gửi tin nhắn", text: response.message }, 'error');
                 } else {
-                    messageInput.value = ''; // Clear input only on success
+                    messageInput.value = ''; 
                 }
             });
         });
@@ -746,11 +758,10 @@
             }
         }
         function updateUserMessageInputLock() {
-            // const button = messageForm.querySelector('button[type="submit"]'); // Now using sendMessageButton directly
             let lockNotice = document.getElementById('lock-notice');
             if (isCurrentChatLocked) {
                 messageInput.disabled = true;
-                sendMessageButton.disabled = true; // Use sendMessageButton
+                sendMessageButton.disabled = true; 
                 messageInput.placeholder = 'Cuộc trò chuyện này đã bị khoá.';
                 if (!lockNotice) {
                     lockNotice = document.createElement('p');
@@ -761,7 +772,7 @@
                 lockNotice.textContent = 'Quản trị viên đã khoá cuộc trò chuyện này.';
             } else {
                 messageInput.disabled = false;
-                sendMessageButton.disabled = false; // Use sendMessageButton
+                sendMessageButton.disabled = false; 
                 messageInput.placeholder = 'Nhập câu hỏi của bạn...';
                 if (lockNotice) lockNotice.remove();
             }
