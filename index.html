@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>HỖ TRỢ TRỰC TUYẾN PMTL.SITE</title>
+    <title>HỖ TRỢ TRỰC TUYẾN</title>
     <link id="favicon" rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Ctext y='.9em' font-size='90'%3E💬%3C/text%3E%3C/svg%3E">
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/tone/14.7.77/Tone.js"></script>
@@ -497,33 +497,40 @@
             socket.on('newMessage', (message) => {
                 const isScrolledToBottom = messagesContainer.scrollHeight - messagesContainer.clientHeight <= messagesContainer.scrollTop + 5;
                 if (message.roomId === currentRoomId) {
+                    // Always append the message to the current chat window
                     appendMessage(message);
                     if (isScrolledToBottom) {
                         scrollToBottom();
-                    } 
-                    // NEW: Show toast notification for new messages if the user is currently in the chat
-                    // and the message is not from themselves.
-                    if (!message.isAdmin && !isAdmin || (message.isAdmin && isAdmin && message.senderId !== 'admin')) { // User receives admin message, or admin receives user message
+                    }
+
+                    // Determine if a notification should be shown for this message
+                    let shouldShowNotification = false;
+
+                    if (!isAdmin) { // Current client is a regular user
+                        // User should get a notification ONLY if the message is from the admin
+                        if (message.isAdmin) {
+                            shouldShowNotification = true;
+                        }
+                    } else { // Current client is an admin
+                        // Admin should get a notification ONLY if the message is from a user
+                        if (!message.isAdmin) {
+                            shouldShowNotification = true;
+                        }
+                    }
+
+                    if (shouldShowNotification) {
+                        const notificationTitle = message.isAdmin ? `Tin nhắn mới từ Quản trị viên` : `Tin nhắn mới từ ${message.displayName}`;
                         if (!document.hidden) { // If tab is active, show toast and play sound
-                            showToastNotification({ title: `Tin nhắn mới từ ${message.displayName}`, text: message.text });
+                            showToastNotification({ title: notificationTitle, text: message.text });
                             notificationSound.triggerAttackRelease("C5", "8n");
                         } else { // If tab is hidden, update title and favicon
-                            document.title = `(Mới) ${message.displayName}`;
-                            updateFavicon(true);
-                            notificationSound.triggerAttackRelease("C5", "8n"); // Play sound even if tab is hidden
-                        }
-                    } else if (!isAdmin && message.isAdmin) { // User receives admin message
-                        if (!document.hidden) {
-                            showToastNotification({ title: `Tin nhắn mới từ Quản trị viên`, text: message.text });
-                            notificationSound.triggerAttackRelease("C5", "8n");
-                        } else {
-                            document.title = `(Mới) Quản trị viên`;
+                            document.title = `(Mới) ${notificationTitle}`; // Simplified title for hidden tab
                             updateFavicon(true);
                             notificationSound.triggerAttackRelease("C5", "8n");
                         }
                     }
-                } else if (isAdmin && message.roomId !== currentRoomId && message.senderId !== 'admin') {
-                    // Admin receives a message for a different room
+                } else if (isAdmin && message.roomId !== currentRoomId && !message.isAdmin) {
+                    // Admin receives a message for a different room from a user
                     showToastNotification({ title: `Tin nhắn mới từ ${message.displayName}`, text: message.text });
                     notificationSound.triggerAttackRelease("C5", "8n");
                 }
