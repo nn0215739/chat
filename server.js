@@ -14,7 +14,7 @@ app.use(express.json());
 const server = http.createServer(app);
 const io = new Server(server, {
   cors: {
-    origin: "*", // Cho phép kết nối từ mọi nguồn
+    origin: "*", 
     methods: ["GET", "POST"]
   }
 });
@@ -23,7 +23,7 @@ const io = new Server(server, {
 const PORT = process.env.PORT || 3000;
 const MONGO_URI = process.env.MONGO_URI || "mongodb://localhost:27017/chatApp";
 const JWT_SECRET = process.env.JWT_SECRET || "your-very-secret-key";
-const INITIAL_ADMIN_EMAIL = "admin@example.com"; // Chỉ dùng để tạo lần đầu
+const INITIAL_ADMIN_EMAIL = "admin@example.com"; 
 const ADMIN_DEFAULT_PASSWORD = "password123";
 
 // --- DATABASE CONNECTION ---
@@ -35,6 +35,7 @@ mongoose.connect(MONGO_URI)
 const messageSchema = new mongoose.Schema({
   roomId: { type: String, required: true, index: true },
   senderId: { type: String, required: true },
+  displayName: { type: String, required: true }, // NEW: Store display name with message
   isAdmin: { type: Boolean, default: false },
   text: { type: String, required: true },
   timestamp: { type: Date, default: Date.now }
@@ -42,10 +43,12 @@ const messageSchema = new mongoose.Schema({
 const Message = mongoose.model('Message', messageSchema);
 
 const chatRoomSchema = new mongoose.Schema({
-  _id: { type: String },
+  _id: { type: String }, // User's ID (roomId)
+  displayName: { type: String, default: 'Sư Huynh Vô Danh' }, // NEW
   lastMessage: { type: String },
   timestamp: { type: Date },
-  hasUnreadAdmin: { type: Boolean, default: false }
+  hasUnreadAdmin: { type: Boolean, default: false },
+  isClosed: { type: Boolean, default: false } // NEW: For locking chats
 });
 const ChatRoom = mongoose.model('ChatRoom', chatRoomSchema);
 
@@ -61,13 +64,8 @@ async function createInitialAdmin() {
         const existingAdmin = await Admin.findOne({ email: INITIAL_ADMIN_EMAIL });
         if (!existingAdmin) {
             const hashedPassword = await bcrypt.hash(ADMIN_DEFAULT_PASSWORD, 10);
-            const newAdmin = new Admin({
-                email: INITIAL_ADMIN_EMAIL,
-                password: hashedPassword
-            });
-            await newAdmin.save();
+            await new Admin({ email: INITIAL_ADMIN_EMAIL, password: hashedPassword }).save();
             console.log(`Initial admin account created. Email: ${INITIAL_ADMIN_EMAIL}, Password: ${ADMIN_DEFAULT_PASSWORD}`);
-            console.log("IMPORTANT: Please change this default password in your database.");
         }
     } catch (error) {
         console.error("Error creating initial admin:", error);
@@ -77,39 +75,18 @@ createInitialAdmin();
 
 
 // --- API ROUTES ---
-
-// *** MỚI: Endpoint kiểm tra "sức khỏe" của backend ***
 app.get('/api/health', (req, res) => {
-    const dbState = mongoose.connection.readyState;
-    const dbStatus = {
-        0: 'disconnected',
-        1: 'connected',
-        2: 'connecting',
-        3: 'disconnecting'
-    }[dbState] || 'unknown';
-
-    res.json({
-        status: 'ok',
-        timestamp: new Date().toISOString(),
-        mongodb: dbStatus
-    });
+    res.json({ status: 'ok', timestamp: new Date().toISOString() });
 });
 
 app.post('/login', async (req, res) => {
     const { email, password } = req.body;
-    
     try {
         const admin = await Admin.findOne({ email });
-        if (!admin) {
-            // Nếu không tìm thấy email trong DB, trả về lỗi
-            return res.status(401).json({ message: "Authentication failed. User not found." });
+        if (!admin || !(await bcrypt.compare(password, admin.password))) {
+            return res.status(401).json({ message: "Authentication failed." });
         }
-        const isMatch = await bcrypt.compare(password, admin.password);
-        if (!isMatch) {
-            // Nếu mật khẩu không khớp, trả về lỗi
-            return res.status(401).json({ message: "Authentication failed. Wrong password." });
-        }
-        const token = jwt.sign({ id: admin._id, email: admin.email }, JWT_SECRET, { expiresIn: '24h' });
+        const token = jwt.sign({ id: admin._id }, JWT_SECRET, { expiresIn: '24h' });
         res.json({ token });
     } catch (error) {
         res.status(500).json({ message: "Server error" });
@@ -117,7 +94,6 @@ app.post('/login', async (req, res) => {
 });
 
 // --- SOCKET.IO LOGIC ---
-// (Không có thay đổi ở phần này)
 io.on('connection', (socket) => {
   console.log('A user connected:', socket.id);
 
@@ -127,33 +103,80 @@ io.on('connection', (socket) => {
     socket.emit('chatList', rooms);
   });
   
-  socket.on('user:join', async (userId) => {
+  // UPDATED: user:join now receives an object with displayName
+  socket.on('user:join', async ({ userId, displayName }) => {
       socket.join(userId);
-      currentRoomId = userId;
+      
+      // Update or create the chat room, setting the display name
+      const room = await ChatRoom.findByIdAndUpdate(
+          userId,
+          { _id: userId, displayName: displayName || 'Sư Huynh Vô Danh' },
+          { upsert: true, new: true, setDefaultsOnInsert: true }
+      );
+      
       const messages = await Message.find({ roomId: userId }).sort({ timestamp: 1 });
-      socket.emit('roomMessages', messages);
+      // UPDATED: Send room details including lock status
+      socket.emit('roomDetails', { messages, isClosed: room.isClosed });
   });
 
   socket.on('admin:viewRoom', async (roomId) => {
       socket.join(roomId);
+      await ChatRoom.findByIdAndUpdate(roomId, { hasUnreadAdmin: false });
       const messages = await Message.find({ roomId: roomId }).sort({ timestamp: 1 });
       socket.emit('roomMessages', messages);
-      await ChatRoom.findByIdAndUpdate(roomId, { hasUnreadAdmin: false });
+      // Update the admin's list in case the unread status changed
+      io.to('admin_room').emit('chatList', await ChatRoom.find().sort({ timestamp: -1 }));
   });
 
+  // NEW: Handle toggling the lock status of a chat
+  socket.on('admin:toggleLock', async ({ roomId, isLocked }) => {
+    try {
+        const room = await ChatRoom.findByIdAndUpdate(roomId, { isClosed: isLocked }, { new: true });
+        if (room) {
+            // Notify the user in that room about the lock status change
+            io.to(roomId).emit('chat:locked', { isLocked: room.isClosed });
+            // Update the list for all admins
+            io.to('admin_room').emit('chatList', await ChatRoom.find().sort({ timestamp: -1 }));
+        }
+    } catch (e) {
+        console.error("Error toggling lock:", e);
+    }
+  });
+
+  // UPDATED: sendMessage logic
   socket.on('sendMessage', async (data) => {
-    const { roomId, senderId, text, isAdmin } = data;
+    const { roomId, senderId, text, isAdmin, displayName } = data;
     
-    const newMessage = new Message({ roomId, senderId, text, isAdmin });
+    // Check if the chat is closed for messages from non-admins
+    const room = await ChatRoom.findById(roomId);
+    if (room && room.isClosed && !isAdmin) {
+        socket.emit('chatError', 'Cuộc trò chuyện này đã bị đóng và không thể gửi tin nhắn.');
+        return;
+    }
+
+    // Save message with all necessary info
+    const newMessage = new Message({ roomId, senderId, text, isAdmin, displayName });
     await newMessage.save();
 
-    const roomUpdate = { lastMessage: text, timestamp: new Date(), hasUnreadAdmin: !isAdmin };
-    await ChatRoom.findByIdAndUpdate(roomId, roomUpdate, { upsert: true, new: true });
+    // Update the room's last message, timestamp, and unread status.
+    // If a user sends a message, it automatically un-archives/un-closes the chat.
+    const roomUpdate = { 
+        lastMessage: text, 
+        timestamp: new Date(), 
+        hasUnreadAdmin: !isAdmin,
+        displayName: displayName 
+    };
+    if(!isAdmin) {
+      roomUpdate.isClosed = false;
+    }
+    
+    await ChatRoom.findByIdAndUpdate(roomId, roomUpdate, { upsert: true, new: true, setDefaultsOnInsert: true });
 
+    // Broadcast the new message to the room (user and any admin viewing it)
     io.to(roomId).emit('newMessage', newMessage);
 
-    const rooms = await ChatRoom.find().sort({ timestamp: -1 });
-    io.to('admin_room').emit('chatList', rooms);
+    // Update the chat list for all connected admins
+    io.to('admin_room').emit('chatList', await ChatRoom.find().sort({ timestamp: -1 }));
   });
 
   socket.on('disconnect', () => {
