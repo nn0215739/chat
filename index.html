@@ -33,6 +33,7 @@
     <div id="toast-container" class="fixed top-5 right-5 z-50 w-full max-w-xs space-y-2"></div>
 
     <div id="app" class="w-full h-full flex flex-col">
+        <!-- Welcome Screen -->
         <div id="welcome-screen" class="w-full h-full flex items-center justify-center bg-pattern p-4">
              <div class="text-center p-6 bg-white/80 backdrop-blur-sm rounded-2xl shadow-2xl border border-gray-200 mx-auto max-w-md">
                 <svg class="w-6 h-6 mb-1 mx-auto text-[#6B4F4F]" viewBox="0 0 256 256" xmlns="http://www.w3.org/2000/svg">
@@ -40,18 +41,18 @@
 				</svg>
                 <h1 class="text-3xl font-bold text-[#6B4F4F] mt-4">HỖ TRỢ TRỰC TUYẾN PHÁP MÔN TÂM LINH</h1>
                 <p class="text-gray-500 mt-2 text-sm">Chúng Đệ luôn sẵn sàng hỗ trợ. Vui lòng nhập tên và chọn "Bắt đầu trò chuyện" để đặt câu hỏi ạ.</p>
-                
                 <div class="mt-6 w-full max-w-xs mx-auto">
                     <label for="display-name-input" class="block text-sm font-medium text-gray-700 mb-1 text-left">Tên hiển thị</label>
                     <input id="display-name-input" type="text" placeholder="Ví dụ: Sư Huynh An Lạc" class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-[#c19a6b] focus:border-[#c19a6b] transition">
                 </div>
-                
                 <div class="mt-4 space-y-3 flex flex-col items-center">
                     <button id="start-chat-button" class="w-full max-w-xs bg-[#c19a6b] text-white font-bold py-3 px-6 rounded-lg hover:bg-[#a9885a] transition-transform transform hover:scale-105 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-[#c19a6b]">Bắt đầu trò chuyện</button>
                     <button id="admin-login-prompt-button" class="w-full max-w-xs bg-white text-[#6B4F4F] font-bold py-3 px-6 rounded-lg hover:bg-gray-100 border border-gray-300 transition-transform transform hover:scale-105">Đăng nhập Quản trị</button>
                 </div>
             </div>
         </div>
+
+        <!-- Login Screen -->
         <div id="login-screen" class="hidden w-full h-full items-center justify-center bg-pattern p-4">
              <div class="w-full max-w-sm p-8 bg-white/80 backdrop-blur-sm rounded-2xl shadow-2xl border border-gray-200">
                 <div class="text-center mb-8"><h1 class="text-3xl font-bold text-[#6B4F4F] mt-4">Đăng Nhập Quản Trị</h1><p class="text-gray-500 mt-2">Chỉ dành cho quản trị viên.</p></div>
@@ -65,20 +66,22 @@
             </div>
         </div>
 
-        <div id="chat-interface" class="hidden h-full w-full flex-grow md:flex">
-            <div id="chat-list-panel" class="hidden fixed inset-0 z-30 md:static md:flex flex-col w-full md:w-1/3 lg:w-1/4 bg-white border-r border-gray-200">
+        <!-- Chat Interface -->
+        <div id="chat-interface" class="hidden h-full w-full flex-grow flex md:flex-row">
+            <!-- Admin: Chat List Panel -->
+            <div id="chat-list-panel" class="hidden md:flex flex-col w-full md:w-1/3 lg:w-1/4 bg-white border-r border-gray-200">
                 <div class="p-4 border-b border-gray-200 flex items-center justify-between flex-shrink-0">
                     <div>
                         <h2 class="text-xl font-bold text-[#6B4F4F]">Các cuộc trò chuyện</h2>
                         <p class="text-sm text-gray-500">Chọn một cuộc trò chuyện.</p>
                     </div>
-                    <button id="close-chat-list-button" class="md:hidden text-gray-600 hover:text-[#c19a6b] text-2xl font-bold">&times;</button>
                 </div>
                 <div id="chat-list-container" class="flex-grow overflow-y-auto scrollable-content"></div>
                 <div class="p-2 border-t border-gray-200 flex-shrink-0"><button id="logout-button" class="w-full text-sm text-gray-600 hover:bg-gray-200 p-2 rounded-md transition">Đăng xuất</button></div>
             </div>
 
-            <div id="chat-window-panel" class="flex flex-col w-full h-full bg-[#F5F1E9]">
+            <!-- Chat Window (For both User and Admin) -->
+            <div id="chat-window-panel" class="hidden md:flex flex-col w-full h-full bg-[#F5F1E9]">
                 <header class="flex-shrink-0 bg-white/80 backdrop-blur-sm shadow-md p-3 flex items-center justify-between border-b border-gray-200">
                     <div class="flex items-center flex-1 min-w-0">
                         <button id="open-chat-list-button" class="md:hidden mr-2 text-gray-600 hover:text-[#c19a6b]">
@@ -93,7 +96,7 @@
                              <svg id="unlock-icon" class="w-4 h-4 hidden" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor"><path d="M10 1a4.5 4.5 0 00-4.5 4.5V9H5a2 2 0 00-2 2v6a2 2 0 002 2h10a2 2 0 002-2v-6a2 2 0 00-2-2h-.5V5.5a3 3 0 10-6 0V9h6zM10 5.5a3 3 0 00-3 3V9h6V8.5a3 3 0 00-3-3z" /></svg>
                             <span id="lock-chat-text">Khoá</span>
                         </button>
-                         <button id="user-logout-button" class="hidden text-sm text-gray-600 hover:text-[#c19a6b] transition">Thoát</button>
+                         <button id="user-logout-button" class="hidden md:block text-sm text-gray-600 hover:text-[#c19a6b] transition">Thoát</button>
                     </div>
                 </header>
                 <main id="messages-container" class="flex-grow p-4 md:p-6 overflow-y-auto scrollable-content">
@@ -120,12 +123,13 @@
     <script>
         // --- CONFIGURATION ---
         const BACKEND_URL = "https://chat-t1ar.onrender.com"; 
-        // FINAL CORRECTION: Using a newly generated, valid VAPID key.
         const VAPID_PUBLIC_KEY = "BJ5nU6-zB6-gLqU2yAFdyf_mK2vA-wz_pQ8jX7nF0vVz1bM3e5g7h9k2l4n6p8r0t2w4y6z8A_bCd";
 
         // --- DOM ELEMENTS ---
-        const appDiv = document.getElementById('app');
         const welcomeScreen = document.getElementById('welcome-screen');
+        const startChatButton = document.getElementById('start-chat-button');
+        const displayNameInput = document.getElementById('display-name-input');
+        const appDiv = document.getElementById('app');
         const loginScreen = document.getElementById('login-screen');
         const chatInterface = document.getElementById('chat-interface');
         const chatListPanel = document.getElementById('chat-list-panel');
@@ -139,9 +143,6 @@
         const placeholder = document.getElementById('placeholder');
         const adminPlaceholder = document.getElementById('admin-placeholder');
         const chatHeaderTitle = document.getElementById('chat-header-title');
-        
-        const displayNameInput = document.getElementById('display-name-input');
-        const startChatButton = document.getElementById('start-chat-button');
         const adminLoginPromptButton = document.getElementById('admin-login-prompt-button');
         const backToWelcomeButton = document.getElementById('back-to-welcome-button');
         const loginForm = document.getElementById('login-form');
@@ -149,11 +150,11 @@
         const logoutButton = document.getElementById('logout-button');
         const userLogoutButton = document.getElementById('user-logout-button');
         const openChatListButton = document.getElementById('open-chat-list-button'); 
-        const closeChatListButton = document.getElementById('close-chat-list-button');
         const lockChatButton = document.getElementById('lock-chat-button');
         const lockChatText = document.getElementById('lock-chat-text');
         const lockIcon = document.getElementById('lock-icon');
         const unlockIcon = document.getElementById('unlock-icon');
+
 
         // --- STATE MANAGEMENT ---
         let socket;
@@ -175,13 +176,11 @@
             tempDiv.textContent = text;
             const sanitizedText = tempDiv.innerHTML;
             return sanitizedText.replace(urlRegex, function(url) {
-                const linkClass = forAdminBubble ?
-                    'text-blue-300 hover:text-blue-100 underline break-all' :
-                    'text-blue-600 hover:underline break-all';
+                const linkClass = forAdminBubble ? 'text-blue-300 hover:text-blue-100 underline break-all' : 'text-blue-600 hover:underline break-all';
                 return `<a href="${url}" target="_blank" rel="noopener noreferrer" class="${linkClass}">${url}</a>`;
             });
         }
-
+        
         function showToastNotification(message) {
             const toastContainer = document.getElementById('toast-container');
             const toastId = 'toast-' + Date.now();
@@ -217,6 +216,7 @@
             favicon.href = hasNewMessage ? newMessageFaviconHref : originalFaviconHref;
         }
 
+
         // --- PUSH NOTIFICATION & SERVICE WORKER ---
         function urlBase64ToUint8Array(base64String) {
             const padding = '='.repeat((4 - base64String.length % 4) % 4);
@@ -229,13 +229,20 @@
             return outputArray;
         }
 
-        async function registerServiceWorkerAndSubscribe() {
+        async function askPermissionAndSubscribe() {
             if (!('serviceWorker' in navigator) || !('PushManager' in window)) {
-                console.warn('Push messaging is not supported');
+                console.warn('Push messaging is not supported by this browser.');
                 return;
             }
 
             try {
+                const permissionResult = await Notification.requestPermission();
+                if (permissionResult !== 'granted') {
+                    console.log('Notification permission not granted.');
+                    return; 
+                }
+
+                console.log('Permission granted. Registering Service Worker...');
                 const swRegistration = await navigator.serviceWorker.register('/service-worker.js');
                 console.log('Service Worker registered:', swRegistration);
 
@@ -247,59 +254,61 @@
                         applicationServerKey: urlBase64ToUint8Array(VAPID_PUBLIC_KEY)
                     });
                 }
-
+                
                 await fetch(`${BACKEND_URL}/api/save-subscription`, {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({ subscription: subscription, roomId: currentUserId })
                 });
+                console.log('Push subscription details sent to server.');
 
-                console.log('Push subscription sent to server.');
             } catch (error) {
-                console.error('Service Worker registration or subscription failed:', error);
+                console.error('Failed to subscribe to push notifications:', error);
             }
         }
 
-        // --- INITIALIZATION & UI NAVIGATION ---
+        // --- UI & LAYOUT LOGIC ---
+        function showScreen(screen) {
+            [welcomeScreen, loginScreen, chatInterface].forEach(s => s.classList.add('hidden'));
+            screen.classList.remove('hidden');
+            screen.classList.add('flex');
+        }
+
+        function showChatList() {
+            chatListPanel.classList.remove('hidden');
+            chatListPanel.classList.add('flex');
+            chatWindowPanel.classList.add('hidden');
+        }
+
+        function showChatWindow() {
+            chatWindowPanel.classList.remove('hidden');
+            chatWindowPanel.classList.add('flex');
+            chatListPanel.classList.add('hidden');
+        }
+
+        // --- EVENT LISTENERS & INITIALIZATION ---
         function initializeSocketConnection() {
             if (socket) socket.disconnect();
             socket = io(BACKEND_URL);
             setupSocketListeners();
         }
 
-        function showScreen(screen) {
-            [welcomeScreen, loginScreen, chatInterface].forEach(s => s.classList.add('hidden'));
-            screen.classList.remove('hidden');
-            if(screen === chatInterface) {
-                screen.classList.add('flex', 'md:flex');
-            } else {
-                 screen.classList.add('flex');
-            }
-        }
-        
-        function showChatWindowOnly() {
-             if (window.innerWidth < 768) {
-                chatListPanel.classList.add('hidden');
-                chatWindowPanel.classList.remove('hidden');
-                chatWindowPanel.classList.add('flex');
-            }
-        }
-
-        startChatButton.addEventListener('click', () => {
-            registerServiceWorkerAndSubscribe();
-
+        startChatButton.addEventListener('click', async () => {
             displayName = displayNameInput.value.trim() || 'Sư Huynh Vô Danh';
             localStorage.setItem('chatDisplayName', displayName);
             if (!currentUserId) {
                 currentUserId = 'user_' + Date.now() + Math.random().toString(36).substring(2, 9);
                 localStorage.setItem('chatUserId', currentUserId);
             }
+            
+            await askPermissionAndSubscribe();
+
             isAdmin = false;
             initializeSocketConnection();
             showScreen(chatInterface);
             setupUserView({ userId: currentUserId, name: displayName });
         });
-
+        
         adminLoginPromptButton.addEventListener('click', () => showScreen(loginScreen));
         backToWelcomeButton.addEventListener('click', () => showScreen(welcomeScreen));
         const handleLogout = () => {
@@ -308,12 +317,9 @@
         };
         logoutButton.addEventListener('click', handleLogout);
         userLogoutButton.addEventListener('click', handleLogout);
-        openChatListButton.addEventListener('click', () => {
-            chatListPanel.classList.remove('hidden');
-            chatListPanel.classList.add('flex');
-            chatWindowPanel.classList.add('hidden');
-        });
-        closeChatListButton.addEventListener('click', showChatWindowOnly);
+        
+        openChatListButton.addEventListener('click', showChatList);
+        
         loginForm.addEventListener('submit', async e => {
             e.preventDefault();
             try {
@@ -335,13 +341,13 @@
 
 
         function setupAdminView() {
-            chatListPanel.classList.remove('hidden');
-            chatListPanel.classList.add('flex');
-            chatWindowPanel.classList.remove('hidden');
-            chatWindowPanel.classList.add('flex');
             if (window.innerWidth < 768) {
-                chatWindowPanel.classList.add('hidden');
+                showChatList(); // On mobile, admin sees the list first
+            } else {
+                chatListPanel.classList.remove('hidden'); // On desktop, show both
+                chatWindowPanel.classList.remove('hidden');
             }
+            
             adminPlaceholder.classList.remove('hidden');
             placeholder.classList.add('hidden');
             messageFooter.classList.add('hidden');
@@ -354,9 +360,8 @@
 
         function setupUserView({ userId, name }) {
             currentRoomId = userId;
-            chatListPanel.classList.add('hidden');
-            chatWindowPanel.classList.remove('hidden');
-            chatWindowPanel.classList.add('flex');
+            showChatWindow();
+            
             adminPlaceholder.classList.add('hidden');
             placeholder.classList.remove('hidden');
             messageFooter.classList.remove('hidden');
@@ -466,7 +471,9 @@
                 document.querySelectorAll('#chat-list-container > div').forEach(el => {
                     el.classList.toggle('bg-[#e6dacb]', el.dataset.roomId === room._id);
                 });
-                showChatWindowOnly();
+                if (window.innerWidth < 768) {
+                    showChatWindow();
+                }
             });
             chatListContainer.appendChild(item);
         }
@@ -605,4 +612,4 @@
         autoInitialize();
     </script>
 </body>
-</ht
+</html>
