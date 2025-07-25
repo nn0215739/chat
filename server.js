@@ -25,7 +25,7 @@ const io = new Server(server, {
 
 // --- CONFIGURATION ---
 const PORT = process.env.PORT || 3000;
-const MONGO_URI = process.env.MONGO_URI; // Make sure this is set in Render Environment Variables
+const MONGO_URI = process.env.MONGO_URI || "mongodb://localhost:27017/chatApp";
 const JWT_SECRET = process.env.JWT_SECRET || "your-very-secret-key";
 const INITIAL_ADMIN_EMAIL = "admin@example.com";
 const ADMIN_DEFAULT_PASSWORD = "password123";
@@ -40,6 +40,10 @@ webpush.setVapidDetails(
     VAPID_PRIVATE_KEY
 );
 
+// --- DATABASE CONNECTION ---
+mongoose.connect(MONGO_URI)
+  .then(() => console.log("MongoDB connected successfully."))
+  .catch(err => console.error("MongoDB connection error:", err));
 
 // --- DATABASE SCHEMAS ---
 const messageSchema = new mongoose.Schema({
@@ -69,28 +73,20 @@ const adminSchema = new mongoose.Schema({
 });
 const Admin = mongoose.model('Admin', adminSchema);
 
-// --- DATABASE CONNECTION & INITIAL ADMIN ---
-const connectDB = async () => {
+// --- INITIAL ADMIN CREATION ---
+async function createInitialAdmin() {
     try {
-        if (!MONGO_URI) {
-            console.error("FATAL ERROR: MONGO_URI is not defined.");
-            process.exit(1); // Exit if no DB connection string
-        }
-        await mongoose.connect(MONGO_URI);
-        console.log("MongoDB connected successfully.");
-
-        // Create initial admin after DB is connected
         const existingAdmin = await Admin.findOne({ email: INITIAL_ADMIN_EMAIL });
         if (!existingAdmin) {
             const hashedPassword = await bcrypt.hash(ADMIN_DEFAULT_PASSWORD, 10);
             await new Admin({ email: INITIAL_ADMIN_EMAIL, password: hashedPassword }).save();
             console.log(`Initial admin created. Email: ${INITIAL_ADMIN_EMAIL}`);
         }
-    } catch (err) {
-        console.error("MongoDB connection error:", err.message);
-        // Optional: attempt to reconnect or handle error gracefully
+    } catch (error) {
+        console.error("Error creating initial admin:", error);
     }
-};
+}
+createInitialAdmin();
 
 
 // --- API ROUTES ---
@@ -155,41 +151,46 @@ io.on('connection', (socket) => {
       }
   });
 
-  socket.on('sendMessage', async (data) => {
+  socket.on('sendMessage', async (data, callback) => { // Added callback parameter
     const { roomId, senderId, text, isAdmin, displayName } = data;
-    const room = await ChatRoom.findById(roomId);
+    try {
+        const room = await ChatRoom.findById(roomId);
 
-    if (!room) return; 
+        if (!room) {
+            if (callback) callback({ status: 'error', message: 'Cuộc trò chuyện không tồn tại.' });
+            return;
+        }
 
-    if (room.isClosed && !isAdmin) {
-        return socket.emit('chatError', 'Cuộc trò chuyện này đã bị khoá. Bạn không thể gửi tin nhắn.');
-    }
-    
-    const newMessage = new Message({ roomId, senderId, text, isAdmin, displayName });
-    await newMessage.save();
+        if (room.isClosed && !isAdmin) {
+            if (callback) callback({ status: 'error', message: 'Cuộc trò chuyện này đã bị khoá. Bạn không thể gửi tin nhắn.' });
+            return socket.emit('chatError', 'Cuộc trò chuyện này đã bị khoá. Bạn không thể gửi tin nhắn.');
+        }
+        
+        const newMessage = new Message({ roomId, senderId, text, isAdmin, displayName });
+        await newMessage.save();
 
-    await ChatRoom.findByIdAndUpdate(roomId, {
-        lastMessage: text,
-        timestamp: new Date(),
-        hasUnreadAdmin: !isAdmin
-    });
-    
-    // FINAL FIX: Use a single, chained broadcast to the room and the admin room.
-    // The client-side has duplicate message prevention, so this is safe and reliable.
-    io.to(roomId).to('admin_room').emit('newMessage', newMessage);
-    
-    // Always update the chat list for admins after a new message.
-    io.to('admin_room').emit('chatList', await ChatRoom.find().sort({ timestamp: -1 }));
+        const roomUpdate = { lastMessage: text, timestamp: new Date(), hasUnreadAdmin: !isAdmin };
+        await ChatRoom.findByIdAndUpdate(roomId, roomUpdate);
 
-    if (isAdmin && room.pushSubscription) {
-        const payload = JSON.stringify({
-            title: `Phản hồi từ ${displayName}`,
-            body: text,
-            icon: '/icon-192x192.png'
-        });
-        webpush.sendNotification(room.pushSubscription, payload).catch(error => {
-            console.error('Error sending push notification:', error);
-        });
+        io.to(roomId).to('admin_room').emit('newMessage', newMessage);
+        io.to('admin_room').emit('chatList', await ChatRoom.find().sort({ timestamp: -1 }));
+
+        // Send push notification to user if admin replies
+        if (isAdmin && room.pushSubscription) {
+            const payload = JSON.stringify({
+                title: `Phản hồi từ ${displayName}`,
+                body: text,
+                icon: '/icon-192x192.png'
+            });
+            webpush.sendNotification(room.pushSubscription, payload).catch(error => {
+                console.error('Error sending push notification:', error);
+            });
+        }
+        if (callback) callback({ status: 'success' }); // Acknowledge success
+    } catch (error) {
+        console.error("Error sending message:", error);
+        if (callback) callback({ status: 'error', message: 'Không thể gửi tin nhắn. Lỗi máy chủ.' });
+        socket.emit('chatError', 'Không thể gửi tin nhắn. Vui lòng thử lại.'); // Also emit general error
     }
   });
 
@@ -198,10 +199,12 @@ io.on('connection', (socket) => {
       io.to(roomId).to('admin_room').emit('chat:locked', { roomId, isLocked });
   });
   
+  // FIX: Handle single message deletion
   socket.on('admin:deleteMessage', async ({ messageId, roomId }) => {
       try {
           const deletedMessage = await Message.findByIdAndDelete(messageId);
           if (deletedMessage) {
+              // Notify both user and admin to remove the message from UI
               io.to(roomId).to('admin_room').emit('messageDeleted', messageId);
               
               const lastMsg = await Message.findOne({ roomId }).sort({ timestamp: -1 });
@@ -216,12 +219,17 @@ io.on('connection', (socket) => {
       }
   });
 
+  // NEW: Handle entire conversation deletion
   socket.on('admin:deleteConversation', async ({ roomId }) => {
       try {
           await Message.deleteMany({ roomId: roomId });
           await ChatRoom.findByIdAndDelete(roomId);
+
+          // Notify admin UI to remove the conversation
           io.to('admin_room').emit('conversationDeleted', roomId);
+          // Notify the user their chat has ended
           io.to(roomId).emit('chatEndedByAdmin');
+
       } catch (error) {
           console.error("Error deleting conversation:", error);
       }
@@ -233,8 +241,6 @@ io.on('connection', (socket) => {
   });
 });
 
-// --- START SERVER AND CONNECT TO DB ---
 server.listen(PORT, () => {
   console.log(`Server is running on port ${PORT}`);
-  connectDB();
 });
