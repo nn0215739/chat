@@ -170,11 +170,14 @@ io.on('connection', (socket) => {
 
     const roomUpdate = { lastMessage: text, timestamp: new Date(), hasUnreadAdmin: !isAdmin };
     await ChatRoom.findByIdAndUpdate(roomId, roomUpdate);
-
-    // FIX: Emit to rooms separately for reliability
+    
+    // Broadcast message to the specific room and to all admins
     io.to(roomId).emit('newMessage', newMessage);
-    io.to('admin_room').emit('newMessage', newMessage);
-
+    if (!isAdmin) {
+        io.to('admin_room').emit('newMessage', newMessage);
+    }
+    
+    // Always update the chat list for admins
     io.to('admin_room').emit('chatList', await ChatRoom.find().sort({ timestamp: -1 }));
 
     if (isAdmin && room.pushSubscription) {
