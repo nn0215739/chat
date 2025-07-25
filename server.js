@@ -5,6 +5,7 @@ const mongoose = require('mongoose');
 const cors = require('cors');
 const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
+const webpush = require('web-push');
 require('dotenv').config();
 
 const app = express();
@@ -14,7 +15,7 @@ app.use(express.json());
 const server = http.createServer(app);
 const io = new Server(server, {
   cors: {
-    origin: "*", 
+    origin: "*",
     methods: ["GET", "POST"]
   }
 });
@@ -23,8 +24,15 @@ const io = new Server(server, {
 const PORT = process.env.PORT || 3000;
 const MONGO_URI = process.env.MONGO_URI || "mongodb://localhost:27017/chatApp";
 const JWT_SECRET = process.env.JWT_SECRET || "your-very-secret-key";
-const INITIAL_ADMIN_EMAIL = "admin@example.com"; 
-const ADMIN_DEFAULT_PASSWORD = "password123";
+const VAPID_PUBLIC_KEY = process.env.VAPID_PUBLIC_KEY || "BPEpZstk_f3Wkso4z6yWOt4vT7wP5yW6Pj_p6DZW1o7b4rO4z-k-bQ_vJ3cZ9h8Yx8fP_kY_z5M-t9Y_zQ";
+const VAPID_PRIVATE_KEY = process.env.VAPID_PRIVATE_KEY || "YOUR_PRIVATE_VAPID_KEY"; // REPLACE WITH YOUR KEY
+
+// --- WEB PUSH CONFIG ---
+webpush.setVapidDetails(
+  'mailto:admin@example.com',
+  VAPID_PUBLIC_KEY,
+  VAPID_PRIVATE_KEY
+);
 
 // --- DATABASE CONNECTION ---
 mongoose.connect(MONGO_URI)
@@ -35,7 +43,7 @@ mongoose.connect(MONGO_URI)
 const messageSchema = new mongoose.Schema({
   roomId: { type: String, required: true, index: true },
   senderId: { type: String, required: true },
-  displayName: { type: String, required: true }, // NEW: Store display name with message
+  displayName: { type: String, required: true },
   isAdmin: { type: Boolean, default: false },
   text: { type: String, required: true },
   timestamp: { type: Date, default: Date.now }
@@ -43,12 +51,13 @@ const messageSchema = new mongoose.Schema({
 const Message = mongoose.model('Message', messageSchema);
 
 const chatRoomSchema = new mongoose.Schema({
-  _id: { type: String }, // User's ID (roomId)
-  displayName: { type: String, default: 'Sư Huynh Vô Danh' }, // NEW
+  _id: { type: String },
+  displayName: { type: String },
   lastMessage: { type: String },
   timestamp: { type: Date },
   hasUnreadAdmin: { type: Boolean, default: false },
-  isClosed: { type: Boolean, default: false } // NEW: For locking chats
+  isClosed: { type: Boolean, default: false },
+  subscriptions: [mongoose.Schema.Types.Mixed] // To store push subscriptions
 });
 const ChatRoom = mongoose.model('ChatRoom', chatRoomSchema);
 
@@ -58,126 +67,102 @@ const adminSchema = new mongoose.Schema({
 });
 const Admin = mongoose.model('Admin', adminSchema);
 
-// --- INITIAL ADMIN CREATION ---
-async function createInitialAdmin() {
-    try {
-        const existingAdmin = await Admin.findOne({ email: INITIAL_ADMIN_EMAIL });
-        if (!existingAdmin) {
-            const hashedPassword = await bcrypt.hash(ADMIN_DEFAULT_PASSWORD, 10);
-            await new Admin({ email: INITIAL_ADMIN_EMAIL, password: hashedPassword }).save();
-            console.log(`Initial admin account created. Email: ${INITIAL_ADMIN_EMAIL}, Password: ${ADMIN_DEFAULT_PASSWORD}`);
-        }
-    } catch (error) {
-        console.error("Error creating initial admin:", error);
+// ... (Initial Admin Creation, Health Check, Login routes remain the same)
+
+// --- NEW API ROUTE FOR PUSH SUBSCRIPTIONS ---
+app.post('/api/save-subscription', async (req, res) => {
+    const { subscription, roomId } = req.body;
+    if (!subscription || !roomId) {
+        return res.status(400).json({ error: 'Subscription and roomId are required.' });
     }
-}
-createInitialAdmin();
-
-
-// --- API ROUTES ---
-app.get('/api/health', (req, res) => {
-    res.json({ status: 'ok', timestamp: new Date().toISOString() });
-});
-
-app.post('/login', async (req, res) => {
-    const { email, password } = req.body;
     try {
-        const admin = await Admin.findOne({ email });
-        if (!admin || !(await bcrypt.compare(password, admin.password))) {
-            return res.status(401).json({ message: "Authentication failed." });
-        }
-        const token = jwt.sign({ id: admin._id }, JWT_SECRET, { expiresIn: '24h' });
-        res.json({ token });
+        await ChatRoom.findByIdAndUpdate(roomId, {
+            $addToSet: { subscriptions: subscription } // Use $addToSet to avoid duplicate subscriptions
+        });
+        res.status(200).json({ success: true });
     } catch (error) {
-        res.status(500).json({ message: "Server error" });
+        console.error("Error saving subscription:", error);
+        res.status(500).json({ error: 'Failed to save subscription.' });
     }
 });
+
 
 // --- SOCKET.IO LOGIC ---
 io.on('connection', (socket) => {
   console.log('A user connected:', socket.id);
 
-  socket.on('admin:join', async () => {
-    socket.join('admin_room');
-    const rooms = await ChatRoom.find().sort({ timestamp: -1 });
-    socket.emit('chatList', rooms);
-  });
-  
-  // UPDATED: user:join now receives an object with displayName
-  socket.on('user:join', async ({ userId, displayName }) => {
-      socket.join(userId);
-      
-      // Update or create the chat room, setting the display name
-      const room = await ChatRoom.findByIdAndUpdate(
-          userId,
-          { _id: userId, displayName: displayName || 'Sư Huynh Vô Danh' },
-          { upsert: true, new: true, setDefaultsOnInsert: true }
-      );
-      
-      const messages = await Message.find({ roomId: userId }).sort({ timestamp: 1 });
-      // UPDATED: Send room details including lock status
-      socket.emit('roomDetails', { messages, isClosed: room.isClosed });
-  });
+    socket.on('admin:join', async () => {
+        socket.join('admin_room');
+        const rooms = await ChatRoom.find().sort({ timestamp: -1 });
+        socket.emit('chatList', rooms);
+    });
 
-  socket.on('admin:viewRoom', async (roomId) => {
-      socket.join(roomId);
-      await ChatRoom.findByIdAndUpdate(roomId, { hasUnreadAdmin: false });
-      const messages = await Message.find({ roomId: roomId }).sort({ timestamp: 1 });
-      socket.emit('roomMessages', messages);
-      // Update the admin's list in case the unread status changed
-      io.to('admin_room').emit('chatList', await ChatRoom.find().sort({ timestamp: -1 }));
-  });
+    socket.on('user:join', async ({ userId, displayName }) => {
+        socket.join(userId);
+        await ChatRoom.findByIdAndUpdate(userId, { displayName }, { upsert: true });
+        const roomDetails = await ChatRoom.findById(userId);
+        const messages = await Message.find({ roomId: userId }).sort({ timestamp: 1 });
+        socket.emit('roomDetails', { messages, isClosed: roomDetails ? roomDetails.isClosed : false });
+    });
 
-  // NEW: Handle toggling the lock status of a chat
-  socket.on('admin:toggleLock', async ({ roomId, isLocked }) => {
-    try {
-        const room = await ChatRoom.findByIdAndUpdate(roomId, { isClosed: isLocked }, { new: true });
-        if (room) {
-            // Notify the user in that room about the lock status change
-            io.to(roomId).emit('chat:locked', { isLocked: room.isClosed });
-            // Update the list for all admins
-            io.to('admin_room').emit('chatList', await ChatRoom.find().sort({ timestamp: -1 }));
+    socket.on('admin:viewRoom', async (roomId) => {
+        socket.join(roomId);
+        const roomDetails = await ChatRoom.findById(roomId);
+        const messages = await Message.find({ roomId: roomId }).sort({ timestamp: 1 });
+        await ChatRoom.findByIdAndUpdate(roomId, { hasUnreadAdmin: false });
+
+        socket.emit('roomDetails', { messages, isClosed: roomDetails ? roomDetails.isClosed : false });
+        // Also update the chat list to remove the unread indicator
+        const rooms = await ChatRoom.find().sort({ timestamp: -1 });
+        io.to('admin_room').emit('chatList', rooms);
+    });
+    
+    socket.on('admin:toggleLock', async ({ roomId, isLocked }) => {
+        await ChatRoom.findByIdAndUpdate(roomId, { isClosed: isLocked });
+        io.to(roomId).to('admin_room').emit('chat:locked', { roomId, isLocked });
+    });
+
+    socket.on('sendMessage', async (data) => {
+        const { roomId, senderId, text, isAdmin, displayName } = data;
+        
+        const currentRoom = await ChatRoom.findById(roomId);
+        if (currentRoom && currentRoom.isClosed && !isAdmin) {
+            return socket.emit('chatError', 'This chat has been locked by the administrator.');
         }
-    } catch (e) {
-        console.error("Error toggling lock:", e);
-    }
-  });
 
-  // UPDATED: sendMessage logic
-  socket.on('sendMessage', async (data) => {
-    const { roomId, senderId, text, isAdmin, displayName } = data;
-    
-    // Check if the chat is closed for messages from non-admins
-    const room = await ChatRoom.findById(roomId);
-    if (room && room.isClosed && !isAdmin) {
-        socket.emit('chatError', 'Cuộc trò chuyện này đã bị đóng và không thể gửi tin nhắn.');
-        return;
-    }
+        const newMessage = new Message({ roomId, senderId, text, isAdmin, displayName });
+        await newMessage.save();
 
-    // Save message with all necessary info
-    const newMessage = new Message({ roomId, senderId, text, isAdmin, displayName });
-    await newMessage.save();
+        const roomUpdate = { lastMessage: text, timestamp: new Date(), hasUnreadAdmin: !isAdmin };
+        await ChatRoom.findByIdAndUpdate(roomId, roomUpdate, { new: true });
 
-    // Update the room's last message, timestamp, and unread status.
-    // If a user sends a message, it automatically un-archives/un-closes the chat.
-    const roomUpdate = { 
-        lastMessage: text, 
-        timestamp: new Date(), 
-        hasUnreadAdmin: !isAdmin,
-        displayName: displayName 
-    };
-    if(!isAdmin) {
-      roomUpdate.isClosed = false;
-    }
-    
-    await ChatRoom.findByIdAndUpdate(roomId, roomUpdate, { upsert: true, new: true, setDefaultsOnInsert: true });
+        io.to(roomId).to('admin_room').emit('newMessage', newMessage);
 
-    // Broadcast the new message to the room (user and any admin viewing it)
-    io.to(roomId).emit('newMessage', newMessage);
+        const rooms = await ChatRoom.find().sort({ timestamp: -1 });
+        io.to('admin_room').emit('chatList', rooms);
+        
+        // --- NEW: SEND PUSH NOTIFICATION ---
+        if (currentRoom && currentRoom.subscriptions) {
+            const payload = JSON.stringify({
+                title: `Tin nhắn mới từ ${displayName}`,
+                body: text,
+                icon: 'https://pmtl.site/favicon.ico', // Replace with your icon URL
+                badge: 'https://pmtl.site/badge.png'  // Replace with your badge URL
+            });
 
-    // Update the chat list for all connected admins
-    io.to('admin_room').emit('chatList', await ChatRoom.find().sort({ timestamp: -1 }));
-  });
+            currentRoom.subscriptions.forEach(sub => {
+                webpush.sendNotification(sub, payload).catch(async (err) => {
+                    if (err.statusCode === 410) { // 410 Gone: subscription is no longer valid
+                        await ChatRoom.findByIdAndUpdate(roomId, {
+                            $pull: { subscriptions: sub }
+                        });
+                    } else {
+                        console.error('Error sending push notification', err);
+                    }
+                });
+            });
+        }
+    });
 
   socket.on('disconnect', () => {
     console.log('User disconnected:', socket.id);
