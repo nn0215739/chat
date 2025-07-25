@@ -30,7 +30,20 @@
 </head>
 <body class="bg-[#F5F1E9] antialiased">
 
-    <div id="toast-container" class="fixed top-5 right-5 z-50 w-full max-w-xs space-y-2"></div>
+    <!-- Confirmation Modal -->
+    <div id="confirmation-modal" class="hidden fixed inset-0 bg-gray-900 bg-opacity-60 flex items-center justify-center z-50">
+        <div class="bg-white rounded-lg shadow-xl p-6 w-full max-w-sm mx-4">
+            <h3 class="text-lg font-bold text-gray-800">Xác nhận hành động</h3>
+            <p id="confirmation-message" class="text-gray-600 mt-2">Bạn có chắc chắn muốn xóa toàn bộ cuộc hội thoại này không? Hành động này không thể hoàn tác.</p>
+            <div class="mt-6 flex justify-end space-x-4">
+                <button id="confirm-cancel-button" class="px-4 py-2 bg-gray-200 text-gray-800 rounded-lg hover:bg-gray-300">Hủy bỏ</button>
+                <button id="confirm-action-button" class="px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700">Xác nhận Xóa</button>
+            </div>
+        </div>
+    </div>
+
+
+    <div id="toast-container" class="fixed top-5 right-5 z-40 w-full max-w-xs space-y-2"></div>
 
     <div id="app" class="w-full h-full flex flex-col">
         <!-- Welcome Screen -->
@@ -91,10 +104,16 @@
                         <h1 id="chat-header-title" class="text-lg font-bold text-[#6B4F4F] ml-2 truncate">Hỗ Trợ Trực Tuyến</h1>
                     </div>
                     <div class="flex items-center space-x-2 flex-shrink-0 ml-2">
-                         <button id="lock-chat-button" class="hidden items-center space-x-2 bg-red-500 text-white font-bold py-2 px-3 rounded-lg hover:bg-red-600 transition">
+                         <button id="delete-conversation-button" class="hidden items-center space-x-2 bg-red-600 text-white font-bold py-2 px-3 rounded-lg hover:bg-red-700 transition" title="Xóa toàn bộ hội thoại">
+                            <svg class="w-4 h-4" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor">
+                                <path fill-rule="evenodd" d="M9 2a1 1 0 00-.894.553L7.382 4H4a1 1 0 000 2v10a2 2 0 002 2h8a2 2 0 002-2V6a1 1 0 100-2h-3.382l-.724-1.447A1 1 0 0011 2H9zM7 8a1 1 0 012 0v6a1 1 0 11-2 0V8zm4 0a1 1 0 012 0v6a1 1 0 11-2 0V8z" clip-rule="evenodd" />
+                            </svg>
+                            <span class="hidden sm:inline">Xóa Hội thoại</span>
+                        </button>
+                         <button id="lock-chat-button" class="hidden items-center space-x-2 bg-yellow-500 text-white font-bold py-2 px-3 rounded-lg hover:bg-yellow-600 transition">
                             <svg id="lock-icon" class="w-4 h-4" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M10 1a4.5 4.5 0 00-4.5 4.5V9H5a2 2 0 00-2 2v6a2 2 0 002 2h10a2 2 0 002-2v-6a2 2 0 00-2-2h-.5V5.5A4.5 4.5 0 0010 1zm3 8V5.5a3 3 0 10-6 0V9h6z" clip-rule="evenodd" /></svg>
-                             <svg id="unlock-icon" class="w-4 h-4 hidden" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor"><path d="M10 1a4.5 4.5 0 00-4.5 4.5V9H5a2 2 0 00-2 2v6a2 2 0 002 2h10a2 2 0 002-2v-6a2 2 0 00-2-2h-.5V5.5a3 3 0 10-6 0V9h6zM10 5.5a3 3 0 00-3 3V9h6V8.5a3 3 0 00-3-3z" /></svg>
-                            <span id="lock-chat-text">Khoá</span>
+                             <svg id="unlock-icon" class="w-4 h-4 hidden" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor"><path d="M10 2a5 5 0 00-5 5v1h-1a2 2 0 00-2 2v6a2 2 0 002 2h10a2 2 0 002-2v-6a2 2 0 00-2-2h-1V7a5 5 0 00-5-5zm2.5 7.5V7a2.5 2.5 0 00-5 0v.5h5z" fill-rule="evenodd" clip-rule="evenodd" /></svg>
+                            <span id="lock-chat-text" class="hidden sm:inline">Khoá</span>
                         </button>
                          <button id="user-logout-button" class="hidden md:block text-sm text-gray-600 hover:text-[#c19a6b] transition">Thoát</button>
                     </div>
@@ -104,7 +123,7 @@
                         <div id="placeholder" class="text-center text-gray-500 mt-10">
                             <p>Chào mừng bạn!</p>
                             <p class="text-sm">Hãy đặt câu hỏi của bạn ở khung chat bên dưới.</p>
-                            <p id="admin-placeholder" class="hidden mt-4 text-sm">Vui lòng chọn một cuộc trò chuyện.</p>
+                            <p id="admin-placeholder" class="hidden mt-4 text-sm">Vui lòng chọn một cuộc trò chuyện từ danh sách bên trái.</p>
                         </div>
                     </div>
                 </main>
@@ -154,7 +173,12 @@
         const lockChatText = document.getElementById('lock-chat-text');
         const lockIcon = document.getElementById('lock-icon');
         const unlockIcon = document.getElementById('unlock-icon');
+        const deleteConversationButton = document.getElementById('delete-conversation-button');
 
+        // Confirmation Modal Elements
+        const confirmationModal = document.getElementById('confirmation-modal');
+        const confirmCancelButton = document.getElementById('confirm-cancel-button');
+        const confirmActionButton = document.getElementById('confirm-action-button');
 
         // --- STATE MANAGEMENT ---
         let socket;
@@ -168,8 +192,20 @@
         const favicon = document.getElementById('favicon');
         const newMessageFaviconHref = "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Ccircle cx='50' cy='50' r='50' fill='red'/%3E%3Ctext x='50%' y='50%' dominant-baseline='central' text-anchor='middle' font-size='60' fill='white'%3E1%3C/text%3E%3C/svg%3E";
         const originalFaviconHref = favicon.href;
+        let confirmAction = null;
+
 
         // --- UTILITY FUNCTIONS ---
+        function showConfirmationModal(action) {
+            confirmationModal.classList.remove('hidden');
+            confirmAction = action;
+        }
+
+        function hideConfirmationModal() {
+            confirmationModal.classList.add('hidden');
+            confirmAction = null;
+        }
+
         function linkify(text, forAdminBubble = false) {
             const urlRegex = /(\b(https?|ftp|file):\/\/[-A-Z0-9+&@#\/%?=~_|!:,.;]*[-A-Z0-9+&@#\/%=~_|])/ig;
             const tempDiv = document.createElement('div');
@@ -181,17 +217,24 @@
             });
         }
         
-        function showToastNotification(message) {
+        function showToastNotification(message, type = 'info') {
             const toastContainer = document.getElementById('toast-container');
             const toastId = 'toast-' + Date.now();
             const toast = document.createElement('div');
             toast.id = toastId;
             toast.className = 'flex items-center gap-3 p-4 bg-white rounded-xl shadow-lg border border-gray-200 transform transition-all duration-500 translate-x-full opacity-0';
-            const iconSvg = `<svg class="w-6 h-6 text-[#6B4F4F] flex-shrink-0" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M8.625 12a.375.375 0 11-.75 0 .375.375 0 01.75 0zm0 0H8.25m4.125 0a.375.375 0 11-.75 0 .375.375 0 01.75 0zm0 0H12m4.125 0a.375.375 0 11-.75 0 .375.375 0 01.75 0zm0 0h-.375M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>`;
+            
+            let iconSvg, bgColor;
+            if (type === 'success') {
+                iconSvg = `<svg class="w-6 h-6 text-green-500 flex-shrink-0" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M9 12.75L11.25 15 15 9.75M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>`;
+            } else {
+                iconSvg = `<svg class="w-6 h-6 text-[#6B4F4F] flex-shrink-0" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M8.625 12a.375.375 0 11-.75 0 .375.375 0 01.75 0zm0 0H8.25m4.125 0a.375.375 0 11-.75 0 .375.375 0 01.75 0zm0 0H12m4.125 0a.375.375 0 11-.75 0 .375.375 0 01.75 0zm0 0h-.375M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>`;
+            }
+            
             const contentDiv = document.createElement('div');
             const title = document.createElement('p');
             title.className = 'font-bold text-sm text-[#6B4F4F]';
-            title.textContent = `Tin nhắn mới từ ${message.displayName}`;
+            title.textContent = message.title;
             const text = document.createElement('p');
             text.className = 'text-sm text-gray-600';
             text.textContent = message.text.length > 50 ? message.text.substring(0, 50) + '...' : message.text;
@@ -200,6 +243,7 @@
             toast.innerHTML = iconSvg;
             toast.appendChild(contentDiv);
             toastContainer.appendChild(toast);
+
             setTimeout(() => {
                 toast.classList.remove('translate-x-full', 'opacity-0');
             }, 10);
@@ -215,7 +259,6 @@
         function updateFavicon(hasNewMessage) {
             favicon.href = hasNewMessage ? newMessageFaviconHref : originalFaviconHref;
         }
-
 
         // --- PUSH NOTIFICATION & SERVICE WORKER ---
         function urlBase64ToUint8Array(base64String) {
@@ -278,15 +321,39 @@
             chatListPanel.classList.remove('hidden');
             chatListPanel.classList.add('flex');
             chatWindowPanel.classList.add('hidden');
+            if (window.innerWidth >= 768) {
+                chatWindowPanel.classList.add('md:flex');
+            }
         }
 
         function showChatWindow() {
             chatWindowPanel.classList.remove('hidden');
             chatWindowPanel.classList.add('flex');
-            chatListPanel.classList.add('hidden');
+            if (window.innerWidth < 768) {
+                chatListPanel.classList.add('hidden');
+            }
+        }
+        
+        function resetChatWindow() {
+            messagesDiv.innerHTML = '';
+            adminPlaceholder.classList.remove('hidden');
+            placeholder.classList.add('hidden');
+            messageFooter.classList.add('hidden');
+            chatHeaderTitle.textContent = "Bảng điều khiển";
+            updateAdminControls(false); // Hide admin buttons
+            currentRoomId = null;
         }
 
         // --- EVENT LISTENERS & INITIALIZATION ---
+        confirmActionButton.addEventListener('click', () => {
+            if (typeof confirmAction === 'function') {
+                confirmAction();
+            }
+            hideConfirmationModal();
+        });
+        confirmCancelButton.addEventListener('click', hideConfirmationModal);
+
+
         function initializeSocketConnection() {
             if (socket) socket.disconnect();
             socket = io(BACKEND_URL);
@@ -306,7 +373,6 @@
             isAdmin = false;
             initializeSocketConnection();
             showScreen(chatInterface);
-            setupUserView({ userId: currentUserId, name: displayName });
         });
         
         adminLoginPromptButton.addEventListener('click', () => showScreen(loginScreen));
@@ -339,37 +405,32 @@
             }
         });
 
-
         function setupAdminView() {
-            if (window.innerWidth < 768) {
-                showChatList(); // On mobile, admin sees the list first
-            } else {
-                chatListPanel.classList.remove('hidden'); // On desktop, show both
-                chatWindowPanel.classList.remove('hidden');
-            }
+            chatListPanel.classList.remove('hidden');
+            chatWindowPanel.classList.remove('hidden');
             
             adminPlaceholder.classList.remove('hidden');
             placeholder.classList.add('hidden');
             messageFooter.classList.add('hidden');
             chatHeaderTitle.textContent = "Bảng điều khiển";
-            lockChatButton.classList.add('hidden');
+            updateAdminControls(false); // Initially hide buttons
             openChatListButton.classList.remove('hidden');
             userLogoutButton.classList.add('hidden');
             socket.emit('admin:join');
         }
 
-        function setupUserView({ userId, name }) {
-            currentRoomId = userId;
-            showChatWindow();
+        function setupUserView() {
+            showChatWindow(); // Handles mobile/desktop layout
+            chatListPanel.classList.add('hidden');
             
             adminPlaceholder.classList.add('hidden');
             placeholder.classList.remove('hidden');
             messageFooter.classList.remove('hidden');
-            chatHeaderTitle.textContent = `${name}`;
+            chatHeaderTitle.textContent = `${displayName}`;
             openChatListButton.classList.add('hidden');
             userLogoutButton.classList.remove('hidden');
-            lockChatButton.classList.add('hidden');
-            socket.emit('user:join', { userId, displayName: name });
+            updateAdminControls(false); // Always hide for user
+            socket.emit('user:join', { userId: currentUserId, displayName: displayName });
         }
         
         // --- SOCKET.IO & CHAT LOGIC ---
@@ -379,16 +440,20 @@
                 if (token && isAdmin) {
                     setupAdminView();
                 } else if (currentUserId && !isAdmin) {
-                    setupUserView({ userId: currentUserId, name: displayName });
+                    setupUserView();
                 }
             });
 
             socket.on('chatList', renderChatRoomList);
-            socket.on('roomMessages', renderMessages);
             socket.on('roomDetails', ({ messages, isClosed }) => { 
                 isCurrentChatLocked = isClosed;
                 renderMessages(messages);
-                if(!isAdmin) updateUserMessageInputLock();
+                if(!isAdmin) {
+                    updateUserMessageInputLock();
+                } else {
+                    updateAdminControls(true);
+                    updateLockUI();
+                }
             });
 
             socket.on('newMessage', (message) => {
@@ -397,8 +462,8 @@
                     appendMessage(message);
                     if (isScrolledToBottom) {
                         scrollToBottom();
-                    } else if (!document.hidden) {
-                        showToastNotification(message);
+                    } else if (!document.hidden && !message.isAdmin) {
+                        showToastNotification({ title: `Tin nhắn từ ${message.displayName}`, text: message.text });
                     }
                 }
 
@@ -412,7 +477,11 @@
             socket.on('chat:locked', ({ roomId, isLocked }) => {
                 if(currentRoomId === roomId) {
                    isCurrentChatLocked = isLocked;
-                   if (!isAdmin) updateUserMessageInputLock();
+                   if (!isAdmin) {
+                       updateUserMessageInputLock();
+                   } else {
+                       updateLockUI();
+                   }
                 }
                 const roomItem = document.querySelector(`#chat-list-container > div[data-room-id="${roomId}"]`);
                 if(roomItem) {
@@ -428,7 +497,6 @@
                 }
             });
 
-            // NEW: Listen for message deletion event
             socket.on('messageDeleted', (messageId) => {
                 const messageElement = document.getElementById('message-' + messageId);
                 if (messageElement) {
@@ -438,9 +506,39 @@
                     }, 300);
                 }
             });
-            
+
+            socket.on('conversationDeleted', (deletedRoomId) => {
+                if (isAdmin) {
+                    const roomItem = document.querySelector(`#chat-list-container > div[data-room-id="${deletedRoomId}"]`);
+                    if (roomItem) {
+                        roomItem.remove();
+                    }
+                    if (currentRoomId === deletedRoomId) {
+                       resetChatWindow();
+                    }
+                    showToastNotification({ title: "Thành công", text: "Đã xóa cuộc hội thoại." }, 'success');
+                }
+            });
+
+            socket.on('chatEndedByAdmin', () => {
+                if (!isAdmin) {
+                    messageInput.disabled = true;
+                    messageForm.querySelector('button[type="submit"]').disabled = true;
+                    messageInput.placeholder = "Cuộc trò chuyện đã kết thúc.";
+                    let endNotice = document.getElementById('end-notice');
+                    if (!endNotice) {
+                         endNotice = document.createElement('p');
+                         endNotice.id = 'end-notice';
+                         endNotice.className = 'text-center text-sm text-red-600 pb-2';
+                         messageFooter.prepend(endNotice);
+                    }
+                    endNotice.textContent = 'Quản trị viên đã kết thúc cuộc trò chuyện này. Vui lòng tải lại trang để bắt đầu cuộc trò chuyện mới.';
+                    userLogoutButton.textContent = "Bắt đầu lại";
+                }
+            });
+
             socket.on('chatError', (errorMessage) => {
-                alert(errorMessage);
+                showToastNotification({ title: "Lỗi", text: errorMessage });
             });
         }
         function renderChatRoomList(rooms) {
@@ -475,7 +573,6 @@
             item.addEventListener('click', () => {
                 currentRoomId = room._id;
                 isCurrentChatLocked = room.isClosed;
-                updateLockUI();
                 socket.emit('admin:viewRoom', room._id);
                 chatHeaderTitle.textContent = `${room.displayName || 'Sư huynh ẩn danh'}`;
                 messageFooter.classList.remove('hidden');
@@ -491,8 +588,8 @@
         function renderMessages(messages) {
             messagesDiv.innerHTML = '';
             if (messages.length === 0) {
-                adminPlaceholder.classList.toggle('hidden', !isAdmin);
-                placeholder.classList.toggle('hidden', isAdmin);
+                adminPlaceholder.classList.toggle('hidden', !isAdmin || !currentRoomId);
+                placeholder.classList.toggle('hidden', isAdmin || messages.length > 0);
             } else {
                 placeholder.classList.add('hidden');
                 adminPlaceholder.classList.add('hidden');
@@ -517,14 +614,14 @@
             placeholder.classList.add('hidden');
             adminPlaceholder.classList.add('hidden');
             const wrapper = document.createElement('div');
-            wrapper.id = 'message-' + msg._id; // Add unique ID to wrapper for deletion
+            wrapper.id = 'message-' + msg._id; 
             const bubble = document.createElement('div');
             const time = document.createElement('div');
             const nameSpan = document.createElement('div');
             const messageContentDiv = document.createElement('div');
             
             wrapper.classList.add('flex', 'flex-col', 'w-full');
-            bubble.classList.add('max-w-[85%]', 'sm:max-w-md', 'px-4', 'py-2', 'rounded-2xl', 'break-words', 'relative', 'group'); // Add relative and group
+            bubble.classList.add('max-w-[85%]', 'sm:max-w-md', 'px-4', 'py-2', 'rounded-2xl', 'break-words', 'relative', 'group'); 
             time.classList.add('text-xs', 'text-gray-500', 'mt-1');
             nameSpan.classList.add('font-bold', 'text-xs', 'block', 'mb-1');
 
@@ -551,12 +648,11 @@
             wrapper.appendChild(time);
             messagesDiv.appendChild(wrapper);
 
-            // NEW: Add delete button for admin view
             if (isAdmin && currentRoomId) {
                 const deleteButton = document.createElement('button');
                 deleteButton.innerHTML = `<svg class="w-4 h-4" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z" clip-rule="evenodd" /></svg>`;
                 
-                const positionClass = msg.isAdmin ? 'absolute -top-1.5 -left-1.5' : 'absolute -top-1.5 -right-1.5';
+                const positionClass = 'absolute -top-1.5 ' + (msg.isAdmin ? '-left-1.5' : '-right-1.5');
                 deleteButton.className = `${positionClass} bg-red-500 text-white rounded-full p-0.5 opacity-0 group-hover:opacity-100 transition-opacity cursor-pointer focus:outline-none`;
                 
                 deleteButton.addEventListener('click', (e) => {
@@ -570,28 +666,36 @@
         function scrollToBottom() {
             messagesContainer.scrollTop = messagesContainer.scrollHeight;
         }
+
+        // --- ADMIN CONTROLS ---
+        function updateAdminControls(show) {
+            lockChatButton.classList.toggle('hidden', !show);
+            deleteConversationButton.classList.toggle('hidden', !show);
+        }
+
         lockChatButton.addEventListener('click', () => {
             if (!isAdmin || !currentRoomId) return;
             socket.emit('admin:toggleLock', { roomId: currentRoomId, isLocked: !isCurrentChatLocked });
-            isCurrentChatLocked = !isCurrentChatLocked;
-            updateLockUI();
         });
+        
+        deleteConversationButton.addEventListener('click', () => {
+             if (!isAdmin || !currentRoomId) return;
+             showConfirmationModal(() => {
+                 socket.emit('admin:deleteConversation', { roomId: currentRoomId });
+             });
+        });
+
         function updateLockUI() {
-            if (!isAdmin || !currentRoomId) {
-                lockChatButton.classList.add('hidden');
-                return;
-            }
-            lockChatButton.classList.remove('hidden');
             if (isCurrentChatLocked) {
                 lockChatText.textContent = 'Mở khoá';
-                lockChatButton.classList.remove('bg-red-500', 'hover:bg-red-600');
+                lockChatButton.classList.remove('bg-yellow-500', 'hover:bg-yellow-600');
                 lockChatButton.classList.add('bg-green-500', 'hover:bg-green-600');
                 lockIcon.classList.add('hidden');
                 unlockIcon.classList.remove('hidden');
             } else {
                 lockChatText.textContent = 'Khoá';
                 lockChatButton.classList.remove('bg-green-500', 'hover:bg-green-600');
-                lockChatButton.classList.add('bg-red-500', 'hover:bg-red-600');
+                lockChatButton.classList.add('bg-yellow-500', 'hover:bg-yellow-600');
                 unlockIcon.classList.add('hidden');
                 lockIcon.classList.remove('hidden');
             }
