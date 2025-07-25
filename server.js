@@ -111,8 +111,12 @@ app.post('/login', async (req, res) => {
 app.post('/api/save-subscription', async (req, res) => {
     try {
         const { subscription, roomId } = req.body;
-        await ChatRoom.findByIdAndUpdate(roomId, { pushSubscription: subscription }, { upsert: true });
-        res.status(201).json({ message: 'Subscription saved.' });
+        if (roomId && subscription) {
+            await ChatRoom.findByIdAndUpdate(roomId, { pushSubscription: subscription }, { upsert: true });
+            res.status(201).json({ message: 'Subscription saved.' });
+        } else {
+            res.status(400).json({ message: 'Room ID and subscription are required.' });
+        }
     } catch (error) {
         console.error("Error saving subscription:", error);
         res.status(500).json({ message: 'Could not save subscription.' });
@@ -138,6 +142,7 @@ io.on('connection', (socket) => {
   });
 
   socket.on('admin:viewRoom', async (roomId) => {
+      await socket.join(roomId);
       const room = await ChatRoom.findByIdAndUpdate(roomId, { hasUnreadAdmin: false }, { new: true });
       if (room) {
         socket.emit('roomDetails', { messages: await Message.find({ roomId }).sort({ timestamp: 1 }), isClosed: room.isClosed });
@@ -150,7 +155,9 @@ io.on('connection', (socket) => {
     const { roomId, senderId, text, isAdmin, displayName } = data;
     const room = await ChatRoom.findById(roomId);
 
-    if (room && room.isClosed && !isAdmin) {
+    if (!room) return; // Don't process messages for deleted rooms
+
+    if (room.isClosed && !isAdmin) {
         return socket.emit('chatError', 'Cuộc trò chuyện này đã bị khoá. Bạn không thể gửi tin nhắn.');
     }
     
@@ -160,15 +167,15 @@ io.on('connection', (socket) => {
     const roomUpdate = { lastMessage: text, timestamp: new Date(), hasUnreadAdmin: !isAdmin };
     await ChatRoom.findByIdAndUpdate(roomId, roomUpdate);
 
-    io.to(roomId).emit('newMessage', newMessage);
+    io.to(roomId).to('admin_room').emit('newMessage', newMessage);
     io.to('admin_room').emit('chatList', await ChatRoom.find().sort({ timestamp: -1 }));
 
-    // Send push notification if it's a user message
-    if (!isAdmin && room && room.pushSubscription) {
+    // Send push notification to user if admin replies
+    if (isAdmin && room.pushSubscription) {
         const payload = JSON.stringify({
-            title: `Tin nhắn mới từ ${displayName}`,
+            title: `Phản hồi từ ${displayName}`,
             body: text,
-            icon: '/favicon.ico' // Optional: path to an icon
+            icon: '/icon-192x192.png'
         });
         webpush.sendNotification(room.pushSubscription, payload).catch(error => {
             console.error('Error sending push notification:', error);
@@ -178,20 +185,20 @@ io.on('connection', (socket) => {
 
   socket.on('admin:toggleLock', async ({ roomId, isLocked }) => {
       await ChatRoom.findByIdAndUpdate(roomId, { isClosed: isLocked });
-      io.to(roomId).emit('chat:locked', { roomId, isLocked });
-      io.to('admin_room').emit('chat:locked', { roomId, isLocked });
+      io.to(roomId).to('admin_room').emit('chat:locked', { roomId, isLocked });
   });
   
-  // NEW: Handle message deletion
+  // FIX: Handle single message deletion
   socket.on('admin:deleteMessage', async ({ messageId, roomId }) => {
       try {
           const deletedMessage = await Message.findByIdAndDelete(messageId);
           if (deletedMessage) {
-              io.to(roomId).emit('messageDeleted', messageId);
-              // Optional: Update last message in chat room if the deleted one was the last one
+              // Notify both user and admin to remove the message from UI
+              io.to(roomId).to('admin_room').emit('messageDeleted', messageId);
+              
               const lastMsg = await Message.findOne({ roomId }).sort({ timestamp: -1 });
               await ChatRoom.findByIdAndUpdate(roomId, {
-                  lastMessage: lastMsg ? lastMsg.text : "Tin nhắn đã bị xóa",
+                  lastMessage: lastMsg ? lastMsg.text : "Tin nhắn đã bị xóa.",
                   timestamp: lastMsg ? lastMsg.timestamp : new Date()
               });
               io.to('admin_room').emit('chatList', await ChatRoom.find().sort({ timestamp: -1 }));
@@ -200,6 +207,23 @@ io.on('connection', (socket) => {
           console.error("Error deleting message:", error);
       }
   });
+
+  // NEW: Handle entire conversation deletion
+  socket.on('admin:deleteConversation', async ({ roomId }) => {
+      try {
+          await Message.deleteMany({ roomId: roomId });
+          await ChatRoom.findByIdAndDelete(roomId);
+
+          // Notify admin UI to remove the conversation
+          io.to('admin_room').emit('conversationDeleted', roomId);
+          // Notify the user their chat has ended
+          io.to(roomId).emit('chatEndedByAdmin');
+
+      } catch (error) {
+          console.error("Error deleting conversation:", error);
+      }
+  });
+
 
   socket.on('disconnect', () => {
     console.log('User disconnected:', socket.id);
