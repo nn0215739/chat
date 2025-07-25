@@ -25,7 +25,7 @@ const io = new Server(server, {
 
 // --- CONFIGURATION ---
 const PORT = process.env.PORT || 3000;
-const MONGO_URI = process.env.MONGO_URI || "mongodb://localhost:27017/chatApp";
+const MONGO_URI = process.env.MONGO_URI; // Make sure this is set in Render Environment Variables
 const JWT_SECRET = process.env.JWT_SECRET || "your-very-secret-key";
 const INITIAL_ADMIN_EMAIL = "admin@example.com";
 const ADMIN_DEFAULT_PASSWORD = "password123";
@@ -40,10 +40,6 @@ webpush.setVapidDetails(
     VAPID_PRIVATE_KEY
 );
 
-// --- DATABASE CONNECTION ---
-mongoose.connect(MONGO_URI)
-  .then(() => console.log("MongoDB connected successfully."))
-  .catch(err => console.error("MongoDB connection error:", err));
 
 // --- DATABASE SCHEMAS ---
 const messageSchema = new mongoose.Schema({
@@ -73,20 +69,28 @@ const adminSchema = new mongoose.Schema({
 });
 const Admin = mongoose.model('Admin', adminSchema);
 
-// --- INITIAL ADMIN CREATION ---
-async function createInitialAdmin() {
+// --- DATABASE CONNECTION & INITIAL ADMIN ---
+const connectDB = async () => {
     try {
+        if (!MONGO_URI) {
+            console.error("FATAL ERROR: MONGO_URI is not defined.");
+            process.exit(1); // Exit if no DB connection string
+        }
+        await mongoose.connect(MONGO_URI);
+        console.log("MongoDB connected successfully.");
+
+        // Create initial admin after DB is connected
         const existingAdmin = await Admin.findOne({ email: INITIAL_ADMIN_EMAIL });
         if (!existingAdmin) {
             const hashedPassword = await bcrypt.hash(ADMIN_DEFAULT_PASSWORD, 10);
             await new Admin({ email: INITIAL_ADMIN_EMAIL, password: hashedPassword }).save();
             console.log(`Initial admin created. Email: ${INITIAL_ADMIN_EMAIL}`);
         }
-    } catch (error) {
-        console.error("Error creating initial admin:", error);
+    } catch (err) {
+        console.error("MongoDB connection error:", err.message);
+        // Optional: attempt to reconnect or handle error gracefully
     }
-}
-createInitialAdmin();
+};
 
 
 // --- API ROUTES ---
@@ -230,6 +234,9 @@ io.on('connection', (socket) => {
   });
 });
 
+// --- START SERVER AND CONNECT TO DB ---
 server.listen(PORT, () => {
   console.log(`Server is running on port ${PORT}`);
+  // Connect to the database AFTER the server has started
+  connectDB();
 });
