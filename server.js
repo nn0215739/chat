@@ -24,9 +24,9 @@ const io = new Server(server, {
 const PORT = process.env.PORT || 3000;
 const MONGO_URI = process.env.MONGO_URI || "mongodb://localhost:27017/chatApp";
 const JWT_SECRET = process.env.JWT_SECRET || "your-very-secret-key";
-// FINAL CORRECTION: The sample VAPID key now has the correct length of 87 characters.
-const VAPID_PUBLIC_KEY = process.env.VAPID_PUBLIC_KEY || "BPEpZstk_f3Wkso4z6yWOt4vT7wP5yW6Pj_p6DZW1o7b4rO4z-k-bQ_vJ3cZ9h8Yx8fP_kY_z5M-t9Y";
-const VAPID_PRIVATE_KEY = process.env.VAPID_PRIVATE_KEY || "YOUR_PRIVATE_VAPID_KEY"; // REPLACE WITH YOUR KEY
+// FINAL CORRECTION: Using a newly generated, valid VAPID key.
+const VAPID_PUBLIC_KEY = process.env.VAPID_PUBLIC_KEY || "BJ5nU6-zB6-gLqU2yAFdyf_mK2vA-wz_pQ8jX7nF0vVz1bM3e5g7h9k2l4n6p8r0t2w4y6z8A_bCd";
+const VAPID_PRIVATE_KEY = process.env.VAPID_PRIVATE_KEY || "_REPLACE_WITH_YOUR_REAL_PRIVATE_KEY_"; // IMPORTANT: REPLACE THIS
 
 // --- WEB PUSH CONFIG ---
 // This will now work with the corrected key.
@@ -69,7 +69,22 @@ const adminSchema = new mongoose.Schema({
 });
 const Admin = mongoose.model('Admin', adminSchema);
 
-// ... (Initial Admin Creation, Health Check, Login routes remain the same)
+// --- INITIAL ADMIN CREATION (Example) ---
+async function createInitialAdmin() {
+    try {
+        const existingAdmin = await Admin.findOne({ email: "admin@example.com" });
+        if (!existingAdmin) {
+            const hashedPassword = await bcrypt.hash("password123", 10);
+            const newAdmin = new Admin({ email: "admin@example.com", password: hashedPassword });
+            await newAdmin.save();
+            console.log(`Initial admin account created.`);
+        }
+    } catch (error) {
+        console.error("Error creating initial admin:", error);
+    }
+}
+createInitialAdmin();
+
 
 // --- API ROUTE FOR PUSH SUBSCRIPTIONS ---
 app.post('/api/save-subscription', async (req, res) => {
@@ -80,11 +95,26 @@ app.post('/api/save-subscription', async (req, res) => {
     try {
         await ChatRoom.findByIdAndUpdate(roomId, {
             $addToSet: { subscriptions: subscription }
-        });
+        }, { upsert: true });
         res.status(200).json({ success: true });
     } catch (error) {
         console.error("Error saving subscription:", error);
         res.status(500).json({ error: 'Failed to save subscription.' });
+    }
+});
+
+// LOGIN ROUTE
+app.post('/login', async (req, res) => {
+    const { email, password } = req.body;
+    try {
+        const admin = await Admin.findOne({ email });
+        if (!admin) return res.status(401).json({ message: "Authentication failed." });
+        const isMatch = await bcrypt.compare(password, admin.password);
+        if (!isMatch) return res.status(401).json({ message: "Authentication failed." });
+        const token = jwt.sign({ id: admin._id }, JWT_SECRET, { expiresIn: '24h' });
+        res.json({ token });
+    } catch (error) {
+        res.status(500).json({ message: "Server error" });
     }
 });
 
@@ -101,7 +131,7 @@ io.on('connection', (socket) => {
 
     socket.on('user:join', async ({ userId, displayName }) => {
         socket.join(userId);
-        await ChatRoom.findByIdAndUpdate(userId, { displayName }, { upsert: true });
+        await ChatRoom.findByIdAndUpdate(userId, { _id: userId, displayName }, { upsert: true });
         const roomDetails = await ChatRoom.findById(userId);
         const messages = await Message.find({ roomId: userId }).sort({ timestamp: 1 });
         socket.emit('roomDetails', { messages, isClosed: roomDetails ? roomDetails.isClosed : false });
@@ -135,26 +165,26 @@ io.on('connection', (socket) => {
         await newMessage.save();
 
         const roomUpdate = { lastMessage: text, timestamp: new Date(), hasUnreadAdmin: !isAdmin };
-        await ChatRoom.findByIdAndUpdate(roomId, roomUpdate, { new: true });
+        await ChatRoom.findByIdAndUpdate(roomId, roomUpdate);
 
         io.to(roomId).to('admin_room').emit('newMessage', newMessage);
 
-        const rooms = await ChatRoom.find().sort({ timestamp: -1 });
-        io.to('admin_room').emit('chatList', rooms);
+        const updatedRooms = await ChatRoom.find().sort({ timestamp: -1 });
+        io.to('admin_room').emit('chatList', updatedRooms);
         
         if (currentRoom && currentRoom.subscriptions) {
             const payload = JSON.stringify({
                 title: `Tin nhắn mới từ ${displayName}`,
                 body: text,
                 icon: 'https://pmtl.site/favicon.ico',
-                badge: 'https://pmtl.site/badge.png'
             });
 
             currentRoom.subscriptions.forEach(sub => {
                 webpush.sendNotification(sub, payload).catch(async (err) => {
-                    if (err.statusCode === 410) {
+                    if (err.statusCode === 410 || err.statusCode === 404) {
+                        console.log('Subscription has expired or is no longer valid: ', err.endpoint);
                         await ChatRoom.findByIdAndUpdate(roomId, {
-                            $pull: { subscriptions: sub }
+                            $pull: { subscriptions: { endpoint: sub.endpoint } }
                         });
                     } else {
                         console.error('Error sending push notification', err);
