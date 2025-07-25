@@ -123,7 +123,7 @@
     <script>
         // --- CONFIGURATION ---
         const BACKEND_URL = "https://chat-t1ar.onrender.com"; 
-        const VAPID_PUBLIC_KEY = "BJ5nU6-zB6-gLqU2yAFdyf_mK2vA-wz_pQ8jX7nF0vVz1bM3e5g7h9k2l4n6p8r0t2w4y6z8A_bCd";
+        const VAPID_PUBLIC_KEY = "BLR3ESERJvSd663nWEkEVoQHkfIk6V0akO8_lVv8Tl4ATq3TNJc2wZQQUYajbRUN0rXreHPDA5As_OMOMN8e4Ms";
 
         // --- DOM ELEMENTS ---
         const welcomeScreen = document.getElementById('welcome-screen');
@@ -427,6 +427,17 @@
                     }
                 }
             });
+
+            // NEW: Listen for message deletion event
+            socket.on('messageDeleted', (messageId) => {
+                const messageElement = document.getElementById('message-' + messageId);
+                if (messageElement) {
+                    messageElement.classList.add('opacity-0', 'transition-opacity', 'duration-300');
+                    setTimeout(() => {
+                        messageElement.remove();
+                    }, 300);
+                }
+            });
             
             socket.on('chatError', (errorMessage) => {
                 alert(errorMessage);
@@ -506,16 +517,20 @@
             placeholder.classList.add('hidden');
             adminPlaceholder.classList.add('hidden');
             const wrapper = document.createElement('div');
+            wrapper.id = 'message-' + msg._id; // Add unique ID to wrapper for deletion
             const bubble = document.createElement('div');
             const time = document.createElement('div');
             const nameSpan = document.createElement('div');
             const messageContentDiv = document.createElement('div');
+            
             wrapper.classList.add('flex', 'flex-col', 'w-full');
-            bubble.classList.add('max-w-[85%]', 'sm:max-w-md', 'px-4', 'py-2', 'rounded-2xl', 'break-words');
+            bubble.classList.add('max-w-[85%]', 'sm:max-w-md', 'px-4', 'py-2', 'rounded-2xl', 'break-words', 'relative', 'group'); // Add relative and group
             time.classList.add('text-xs', 'text-gray-500', 'mt-1');
             nameSpan.classList.add('font-bold', 'text-xs', 'block', 'mb-1');
+
             const msgDate = msg.timestamp ? new Date(msg.timestamp) : new Date();
             time.textContent = msgDate.toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' });
+
             if (msg.isAdmin) {
                 wrapper.classList.add('items-end');
                 bubble.classList.add('bg-[#6B4F4F]', 'text-white', 'shadow-md');
@@ -535,7 +550,23 @@
             wrapper.appendChild(bubble);
             wrapper.appendChild(time);
             messagesDiv.appendChild(wrapper);
+
+            // NEW: Add delete button for admin view
+            if (isAdmin && currentRoomId) {
+                const deleteButton = document.createElement('button');
+                deleteButton.innerHTML = `<svg class="w-4 h-4" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z" clip-rule="evenodd" /></svg>`;
+                
+                const positionClass = msg.isAdmin ? 'absolute -top-1.5 -left-1.5' : 'absolute -top-1.5 -right-1.5';
+                deleteButton.className = `${positionClass} bg-red-500 text-white rounded-full p-0.5 opacity-0 group-hover:opacity-100 transition-opacity cursor-pointer focus:outline-none`;
+                
+                deleteButton.addEventListener('click', (e) => {
+                    e.stopPropagation();
+                    socket.emit('admin:deleteMessage', { messageId: msg._id, roomId: currentRoomId });
+                });
+                bubble.appendChild(deleteButton);
+            }
         }
+
         function scrollToBottom() {
             messagesContainer.scrollTop = messagesContainer.scrollHeight;
         }
