@@ -3,7 +3,8 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Pháp Đàm Trực Tuyến (MongoDB)</title>
+    <title>HỖ TRỢ TRỰC TUYẾN PMTL.SITE</title>
+    <link id="favicon" rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Ctext y='.9em' font-size='90'%3E💬%3C/text%3E%3C/svg%3E">
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/tone/14.7.77/Tone.js"></script>
     <script src="https://cdn.socket.io/4.6.1/socket.io.min.js"></script>
@@ -11,7 +12,13 @@
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
     <style>
-        body { font-family: 'Inter', sans-serif; }
+        html, body {
+            height: 100%;
+            overflow: hidden; 
+        }
+        body { 
+            font-family: 'Inter', sans-serif; 
+        }
         .scrollable-content::-webkit-scrollbar { width: 6px; }
         .scrollable-content::-webkit-scrollbar-track { background: #f1f1f1; }
         .scrollable-content::-webkit-scrollbar-thumb { background: #c19a6b; border-radius: 6px; }
@@ -23,21 +30,30 @@
 </head>
 <body class="bg-[#F5F1E9] antialiased">
 
-    <div id="app" class="w-screen h-screen overflow-hidden">
-        <!-- Các màn hình Welcome và Login giữ nguyên cấu trúc HTML -->
-        <div id="welcome-screen" class="w-full h-full flex items-center justify-center bg-pattern">
-             <div class="text-center p-8">
-                <svg class="w-24 h-24 mx-auto text-[#D4AF37]" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M12 21a9 9 0 100-18 9 9 0 000 18z"></path><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M12 3v1m0 16v1m8.66-14.66l-.707.707M4.04 19.96l-.707.707M21 12h-1M4 12H3m14.66 8.66l-.707-.707M4.04 4.04l-.707-.707"></path><path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M12 12a4 4 0 100-8 4 4 0 000 8z"></path></svg>
-                <h1 class="text-4xl font-bold text-[#6B4F4F] mt-6">Pháp Đàm Trực Tuyến</h1>
-                <p class="text-gray-500 mt-3 max-w-md mx-auto">Nơi giải đáp các thắc mắc và chia sẻ kiến thức Phật pháp. Vui lòng chọn vai trò của bạn để tiếp tục.</p>
-                <div class="mt-10 space-y-4 sm:space-y-0 sm:space-x-4 flex flex-col sm:flex-row justify-center">
-                    <button id="start-chat-button" class="w-full sm:w-auto bg-[#c19a6b] text-white font-bold py-3 px-8 rounded-lg hover:bg-[#a9885a] transition-transform transform hover:scale-105 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-[#c19a6b]">Bắt đầu trò chuyện</button>
-                    <button id="admin-login-prompt-button" class="w-full sm:w-auto bg-white text-[#6B4F4F] font-bold py-3 px-8 rounded-lg hover:bg-gray-100 border border-gray-300 transition-transform transform hover:scale-105">Đăng nhập Quản trị</button>
+    <div id="toast-container" class="fixed top-5 right-5 z-50 w-full max-w-xs space-y-2"></div>
+
+    <div id="app" class="w-full h-full flex flex-col">
+        <div id="welcome-screen" class="w-full h-full flex items-center justify-center bg-pattern p-4">
+             <div class="text-center p-6 bg-white/80 backdrop-blur-sm rounded-2xl shadow-2xl border border-gray-200 mx-auto max-w-md">
+                <svg class="w-6 h-6 mb-1 mx-auto text-[#6B4F4F]" viewBox="0 0 256 256" xmlns="http://www.w3.org/2000/svg">
+					<path fill="currentColor" d="M242.37 123.65a11.54 11.54 0 0 0-7.08-5.46a71.5 71.5 0 0 0-26.29-1.67c5.48-21.46 2.38-38.36-.75-48a12.16 12.16 0 0 0-14.16-8.19a82.85 82.85 0 0 0-31 14.17a91.06 91.06 0 0 0-27.9-36a11.91 11.91 0 0 0-14.44 0a91.06 91.06 0 0 0-27.9 36a82.92 82.92 0 0 0-31-14.17a12.16 12.16 0 0 0-14.16 8.19c-3.13 9.68-6.23 26.58-.75 48a71.5 71.5 0 0 0-26.26 1.67a11.54 11.54 0 0 0-7.08 5.46a12 12 0 0 0-1.2 9.22c3.24 12 13.2 34.81 43.52 52.92S113.45 204 128 204s41.61 0 72.07-18.21s40.28-40.93 43.52-52.92a12 12 0 0 0-1.22-9.22M195.8 68.11a4.2 4.2 0 0 1 4.87 2.89c4 12.5 8 38.35-10.77 71c-10.45 18.19-25.11 32.2-38.11 41.44C162 170 172 149.24 172 119.19a113.35 113.35 0 0 0-5.88-37a75.28 75.28 0 0 1 29.68-14.08M55.33 71a4.19 4.19 0 0 1 4.87-2.84a75.28 75.28 0 0 1 29.68 14.03a113.35 113.35 0 0 0-5.88 37c0 30.05 10 50.82 20.21 64.23c-13-9.24-27.66-23.25-38.11-41.44C47.32 109.3 51.29 83.45 55.33 71m4.72 108c-27.9-16.67-37-37.32-39.9-48.15a4 4 0 0 1 .41-3.13a3.59 3.59 0 0 1 2.21-1.73a64.62 64.62 0 0 1 26.73-1a123.48 123.48 0 0 0 9.66 21c13.28 23.1 32.66 39.67 48.27 49.11a116.34 116.34 0 0 1-47.38-16.17Zm68 16.34a75.75 75.75 0 0 1-17.08-16.4C98.37 162.58 92 142.5 92 119.19c0-44.25 23.49-66.75 33.59-74.36a4 4 0 0 1 4.82 0c10.1 7.61 33.59 30.11 33.59 74.36c0 23.31-6.37 43.39-18.92 59.68a75.75 75.75 0 0 1-17.08 16.4Zm107.85-64.49c-2.92 10.83-12 31.48-39.9 48.15a116.34 116.34 0 0 1-47.38 16.15c15.61-9.44 35-26 48.27-49.11a123.48 123.48 0 0 0 9.66-21a64.45 64.45 0 0 1 26.73 1a3.59 3.59 0 0 1 2.21 1.73a4 4 0 0 1 .36 3.01Z" />
+				</svg>
+                <h1 class="text-3xl font-bold text-[#6B4F4F] mt-4">HỖ TRỢ TRỰC TUYẾN PHÁP MÔN TÂM LINH</h1>
+                <p class="text-gray-500 mt-2 text-sm">Chúng Đệ luôn sẵn sàng hỗ trợ. Vui lòng nhập tên và chọn "Bắt đầu trò chuyện" để đặt câu hỏi ạ.</p>
+                
+                <div class="mt-6 w-full max-w-xs mx-auto">
+                    <label for="display-name-input" class="block text-sm font-medium text-gray-700 mb-1 text-left">Tên hiển thị</label>
+                    <input id="display-name-input" type="text" placeholder="Ví dụ: Sư Huynh An Lạc" class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-[#c19a6b] focus:border-[#c19a6b] transition">
+                </div>
+                
+                <div class="mt-4 space-y-3 flex flex-col items-center">
+                    <button id="start-chat-button" class="w-full max-w-xs bg-[#c19a6b] text-white font-bold py-3 px-6 rounded-lg hover:bg-[#a9885a] transition-transform transform hover:scale-105 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-[#c19a6b]">Bắt đầu trò chuyện</button>
+                    <button id="admin-login-prompt-button" class="w-full max-w-xs bg-white text-[#6B4F4F] font-bold py-3 px-6 rounded-lg hover:bg-gray-100 border border-gray-300 transition-transform transform hover:scale-105">Đăng nhập Quản trị</button>
                 </div>
             </div>
         </div>
-        <div id="login-screen" class="hidden w-full h-full items-center justify-center bg-pattern">
-            <div class="w-full max-w-sm p-8 bg-white/80 backdrop-blur-sm rounded-2xl shadow-2xl border border-gray-200">
+        <div id="login-screen" class="hidden w-full h-full items-center justify-center bg-pattern p-4">
+             <div class="w-full max-w-sm p-8 bg-white/80 backdrop-blur-sm rounded-2xl shadow-2xl border border-gray-200">
                 <div class="text-center mb-8"><h1 class="text-3xl font-bold text-[#6B4F4F] mt-4">Đăng Nhập Quản Trị</h1><p class="text-gray-500 mt-2">Chỉ dành cho quản trị viên.</p></div>
                 <form id="login-form">
                     <div class="mb-4"><label for="email" class="block text-sm font-medium text-gray-700 mb-1">Email</label><input type="email" id="email" name="email" required class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-[#c19a6b] focus:border-[#c19a6b] transition" placeholder="admin@example.com"></div>
@@ -49,50 +65,71 @@
             </div>
         </div>
 
-        <!-- Main Chat Interface -->
-        <div id="chat-interface" class="hidden w-full h-full">
-            <div class="flex h-full w-full">
-                <!-- Admin: Chat List Panel -->
-                <div id="chat-list-panel" class="hidden md:flex flex-col w-full md:w-1/3 lg:w-1/4 bg-white/60 border-r border-gray-200">
-                    <div class="p-4 border-b border-gray-200"><h2 class="text-xl font-bold text-[#6B4F4F]">Các cuộc trò chuyện</h2><p class="text-sm text-gray-500">Chọn một cuộc trò chuyện để xem.</p></div>
-                    <div id="chat-list-container" class="flex-grow overflow-y-auto scrollable-content"></div>
-                    <div class="p-2 border-t border-gray-200"><button id="logout-button" class="w-full text-sm text-gray-600 hover:bg-gray-200 p-2 rounded-md transition">Đăng xuất</button></div>
+        <div id="chat-interface" class="hidden h-full w-full flex-grow md:flex">
+            <div id="chat-list-panel" class="hidden fixed inset-0 z-30 md:static md:flex flex-col w-full md:w-1/3 lg:w-1/4 bg-white border-r border-gray-200">
+                <div class="p-4 border-b border-gray-200 flex items-center justify-between flex-shrink-0">
+                    <div>
+                        <h2 class="text-xl font-bold text-[#6B4F4F]">Các cuộc trò chuyện</h2>
+                        <p class="text-sm text-gray-500">Chọn một cuộc trò chuyện.</p>
+                    </div>
+                    <button id="close-chat-list-button" class="md:hidden text-gray-600 hover:text-[#c19a6b] text-2xl font-bold">&times;</button>
                 </div>
+                <div id="chat-list-container" class="flex-grow overflow-y-auto scrollable-content"></div>
+                <div class="p-2 border-t border-gray-200 flex-shrink-0"><button id="logout-button" class="w-full text-sm text-gray-600 hover:bg-gray-200 p-2 rounded-md transition">Đăng xuất</button></div>
+            </div>
 
-                <!-- Chat Window (For both User and Admin) -->
-                <div id="chat-window-panel" class="flex flex-col w-full h-full bg-[#F5F1E9]">
-                    <header class="flex-shrink-0 bg-white/80 backdrop-blur-sm shadow-md p-4 flex items-center justify-between border-b border-gray-200">
-                        <div class="flex items-center">
-                            <svg class="w-8 h-8 text-[#D4AF37]" viewBox="0 0 28 28" fill="currentColor" xmlns="http://www.w3.org/2000/svg"><path d="M14 0C6.268 0 0 6.268 0 14s6.268 14 14 14 14-6.268 14-14S21.732 0 14 0zm0 26C7.373 26 2 20.627 2 14S7.373 2 14 2s12 5.373 12 12-5.373 12-12 12z"/><path d="M14 4c-5.523 0-10 4.477-10 10s4.477 10 10 10 10-4.477 10-10S19.523 4 14 4zm0 18c-4.418 0-8-3.582-8-8s3.582-8 8-8 8 3.582 8 8-3.582 8-8 8z"/><path d="M14 7c-3.866 0-7 3.134-7 7s3.134 7 7 7 7-3.134 7-7-3.134-7-7-7zm0 12c-2.761 0-5-2.239-5-5s2.239-5 5-5 5 2.239 5 5-2.239 5-5 5z"/></svg>
-                            <h1 id="chat-header-title" class="text-xl font-bold text-[#6B4F4F] ml-3">Pháp Đàm Trực Tuyến</h1>
+            <div id="chat-window-panel" class="flex flex-col w-full h-full bg-[#F5F1E9]">
+                <header class="flex-shrink-0 bg-white/80 backdrop-blur-sm shadow-md p-3 flex items-center justify-between border-b border-gray-200">
+                    <div class="flex items-center flex-1 min-w-0">
+                        <button id="open-chat-list-button" class="md:hidden mr-2 text-gray-600 hover:text-[#c19a6b]">
+                            <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 12h16M4 18h16"></path></svg>
+                        </button>
+                        <svg class="w-8 h-8 text-[#D4AF37] hidden sm:block" viewBox="0 0 28 28" fill="currentColor"><path d="M14 0C6.268 0 0 6.268 0 14s6.268 14 14 14 14-6.268 14-14S21.732 0 14 0zm0 26C7.373 26 2 20.627 2 14S7.373 2 14 2s12 5.373 12 12-5.373 12-12 12z"/><path d="M14 4c-5.523 0-10 4.477-10 10s4.477 10 10 10 10-4.477 10-10S19.523 4 14 4zm0 18c-4.418 0-8-3.582-8-8s3.582-8 8-8 8 3.582 8 8-3.582 8-8 8z"/><path d="M14 7c-3.866 0-7 3.134-7 7s3.134 7 7 7 7-3.134 7-7-3.134-7-7-7zm0 12c-2.761 0-5-2.239-5-5s2.239-5 5-5 5 2.239 5 5-2.239 5-5 5z"/></svg>
+                        <h1 id="chat-header-title" class="text-lg font-bold text-[#6B4F4F] ml-2 truncate">Hỗ Trợ Trực Tuyến</h1>
+                    </div>
+                    <div class="flex items-center space-x-2 flex-shrink-0 ml-2">
+                         <button id="lock-chat-button" class="hidden items-center space-x-2 bg-red-500 text-white font-bold py-2 px-3 rounded-lg hover:bg-red-600 transition">
+                            <svg id="lock-icon" class="w-4 h-4" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M10 1a4.5 4.5 0 00-4.5 4.5V9H5a2 2 0 00-2 2v6a2 2 0 002 2h10a2 2 0 002-2v-6a2 2 0 00-2-2h-.5V5.5A4.5 4.5 0 0010 1zm3 8V5.5a3 3 0 10-6 0V9h6z" clip-rule="evenodd" /></svg>
+                             <svg id="unlock-icon" class="w-4 h-4 hidden" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor"><path d="M10 1a4.5 4.5 0 00-4.5 4.5V9H5a2 2 0 00-2 2v6a2 2 0 002 2h10a2 2 0 002-2v-6a2 2 0 00-2-2h-.5V5.5a3 3 0 10-6 0V9h6zM10 5.5a3 3 0 00-3 3V9h6V8.5a3 3 0 00-3-3z" /></svg>
+                            <span id="lock-chat-text">Khoá</span>
+                        </button>
+                         <button id="user-logout-button" class="hidden text-sm text-gray-600 hover:text-[#c19a6b] transition">Thoát</button>
+                    </div>
+                </header>
+                <main id="messages-container" class="flex-grow p-4 md:p-6 overflow-y-auto scrollable-content">
+                    <div id="messages" class="space-y-4">
+                        <div id="placeholder" class="text-center text-gray-500 mt-10">
+                            <p>Chào mừng bạn!</p>
+                            <p class="text-sm">Hãy đặt câu hỏi của bạn ở khung chat bên dưới.</p>
+                            <p id="admin-placeholder" class="hidden mt-4 text-sm">Vui lòng chọn một cuộc trò chuyện.</p>
                         </div>
-                         <button id="user-logout-button" class="text-sm text-gray-600 hover:text-[#c19a6b] transition md:hidden">Thoát</button>
-                    </header>
-                    <main id="messages-container" class="flex-grow p-4 md:p-6 overflow-y-auto scrollable-content">
-                        <div id="messages" class="space-y-4"><div id="placeholder" class="text-center text-gray-500 mt-10"><p>Chào mừng bạn!</p><p class="text-sm">Hãy đặt câu hỏi của bạn ở khung chat bên dưới.</p><p id="admin-placeholder" class="hidden mt-4 text-sm">Vui lòng chọn một cuộc trò chuyện từ danh sách bên trái để bắt đầu.</p></div></div>
-                    </main>
-                    <footer id="message-footer" class="flex-shrink-0 p-4 bg-white/80 backdrop-blur-sm border-t border-gray-200">
-                        <form id="message-form" class="flex items-center space-x-4">
-                            <input id="message-input" type="text" placeholder="Nhập câu hỏi của bạn..." autocomplete="off" class="w-full px-4 py-3 border border-gray-300 rounded-full focus:ring-[#c19a6b] focus:border-[#c19a6b] transition">
-                            <button type="submit" class="bg-[#c19a6b] text-white rounded-full p-3 hover:bg-[#a9885a] transition-transform transform hover:scale-110"><svg class="w-6 h-6" fill="currentColor" viewBox="0 0 20 20" xmlns="http://www.w3.org/2000/svg"><path d="M10.894 2.553a1 1 0 00-1.788 0l-7 14a1 1 0 001.169 1.409l5-1.429A1 1 0 009 15.571V11a1 1 0 112 0v4.571a1 1 0 00.725.962l5 1.428a1 1 0 001.17-1.408l-7-14z"></path></svg></button>
-                        </form>
-                    </footer>
-                </div>
+                    </div>
+                </main>
+                <footer id="message-footer" class="flex-shrink-0 p-4 bg-white/80 backdrop-blur-sm border-t border-gray-200">
+                    <form id="message-form" class="flex items-center space-x-4">
+                        <input id="message-input" type="text" placeholder="Nhập câu hỏi của bạn..." autocomplete="off" class="w-full px-4 py-3 border border-gray-300 rounded-full focus:ring-[#c19a6b] focus:border-[#c19a6b] transition disabled:bg-gray-200">
+                        <button type="submit" class="bg-[#c19a6b] text-white rounded-full p-3 hover:bg-[#a9885a] transition-transform transform hover:scale-110 disabled:bg-gray-400 disabled:transform-none disabled:cursor-not-allowed">
+                            <svg class="w-6 h-6" fill="currentColor" viewBox="0 0 20 20"><path d="M10.894 2.553a1 1 0 00-1.788 0l-7 14a1 1 0 001.169 1.409l5-1.429A1 1 0 009 15.571V11a1 1 0 112 0v4.571a1 1 0 00.725.962l5 1.428a1 1 0 001.17-1.408l-7-14z"></path></svg>
+                        </button>
+                    </form>
+                </footer>
             </div>
         </div>
     </div>
 
     <script>
         // --- CONFIGURATION ---
-        // !!! QUAN TRỌNG: Thay đổi URL này thành URL của backend server của bạn sau khi triển khai !!!
         const BACKEND_URL = "https://chat-t1ar.onrender.com"; 
+        const VAPID_PUBLIC_KEY = "BPEpZstk_f3Wkso4z6yWOt4vT7wP5yW6Pj_p6DZW1o7b4rO4z-k-bQ_vJ3cZ9h8Yx8fP_kY_z5M-t9Y_zQ"; // Same key as in server.js
 
         // --- DOM ELEMENTS ---
+        const appDiv = document.getElementById('app');
         const welcomeScreen = document.getElementById('welcome-screen');
         const loginScreen = document.getElementById('login-screen');
         const chatInterface = document.getElementById('chat-interface');
         const chatListPanel = document.getElementById('chat-list-panel');
         const chatListContainer = document.getElementById('chat-list-container');
+        const chatWindowPanel = document.getElementById('chat-window-panel');
         const messagesContainer = document.getElementById('messages-container');
         const messagesDiv = document.getElementById('messages');
         const messageForm = document.getElementById('message-form');
@@ -102,6 +139,7 @@
         const adminPlaceholder = document.getElementById('admin-placeholder');
         const chatHeaderTitle = document.getElementById('chat-header-title');
         
+        const displayNameInput = document.getElementById('display-name-input');
         const startChatButton = document.getElementById('start-chat-button');
         const adminLoginPromptButton = document.getElementById('admin-login-prompt-button');
         const backToWelcomeButton = document.getElementById('back-to-welcome-button');
@@ -109,33 +147,156 @@
         const loginError = document.getElementById('login-error');
         const logoutButton = document.getElementById('logout-button');
         const userLogoutButton = document.getElementById('user-logout-button');
+        const openChatListButton = document.getElementById('open-chat-list-button'); 
+        const closeChatListButton = document.getElementById('close-chat-list-button');
+        const lockChatButton = document.getElementById('lock-chat-button');
+        const lockChatText = document.getElementById('lock-chat-text');
+        const lockIcon = document.getElementById('lock-icon');
+        const unlockIcon = document.getElementById('unlock-icon');
 
         // --- STATE MANAGEMENT ---
         let socket;
         let isAdmin = false;
         let currentUserId = localStorage.getItem('chatUserId');
+        let displayName = localStorage.getItem('chatDisplayName');
         let currentRoomId = null;
+        let isCurrentChatLocked = false;
         const originalTitle = document.title;
         const notificationSound = new Tone.Synth().toDestination();
+        const favicon = document.getElementById('favicon');
+        const newMessageFaviconHref = "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Ccircle cx='50' cy='50' r='50' fill='red'/%3E%3Ctext x='50%' y='50%' dominant-baseline='central' text-anchor='middle' font-size='60' fill='white'%3E1%3C/text%3E%3C/svg%3E";
+        const originalFaviconHref = favicon.href;
 
-        // --- INITIALIZATION ---
-        function initializeSocketConnection() {
-            // Disconnect previous socket if exists
-            if (socket) {
-                socket.disconnect();
+        // --- UTILITY FUNCTIONS ---
+        // (linkify, showToastNotification, etc. remain the same)
+        function linkify(text, forAdminBubble = false) {
+            const urlRegex = /(\b(https?|ftp|file):\/\/[-A-Z0-9+&@#\/%?=~_|!:,.;]*[-A-Z0-9+&@#\/%=~_|])/ig;
+            const tempDiv = document.createElement('div');
+            tempDiv.textContent = text;
+            const sanitizedText = tempDiv.innerHTML;
+            return sanitizedText.replace(urlRegex, function(url) {
+                const linkClass = forAdminBubble ?
+                    'text-blue-300 hover:text-blue-100 underline break-all' :
+                    'text-blue-600 hover:underline break-all';
+                return `<a href="${url}" target="_blank" rel="noopener noreferrer" class="${linkClass}">${url}</a>`;
+            });
+        }
+
+        function showToastNotification(message) {
+            const toastContainer = document.getElementById('toast-container');
+            const toastId = 'toast-' + Date.now();
+            const toast = document.createElement('div');
+            toast.id = toastId;
+            toast.className = 'flex items-center gap-3 p-4 bg-white rounded-xl shadow-lg border border-gray-200 transform transition-all duration-500 translate-x-full opacity-0';
+            const iconSvg = `<svg class="w-6 h-6 text-[#6B4F4F] flex-shrink-0" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M8.625 12a.375.375 0 11-.75 0 .375.375 0 01.75 0zm0 0H8.25m4.125 0a.375.375 0 11-.75 0 .375.375 0 01.75 0zm0 0H12m4.125 0a.375.375 0 11-.75 0 .375.375 0 01.75 0zm0 0h-.375M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>`;
+            const contentDiv = document.createElement('div');
+            const title = document.createElement('p');
+            title.className = 'font-bold text-sm text-[#6B4F4F]';
+            title.textContent = `Tin nhắn mới từ ${message.displayName}`;
+            const text = document.createElement('p');
+            text.className = 'text-sm text-gray-600';
+            text.textContent = message.text.length > 50 ? message.text.substring(0, 50) + '...' : message.text;
+            contentDiv.appendChild(title);
+            contentDiv.appendChild(text);
+            toast.innerHTML = iconSvg;
+            toast.appendChild(contentDiv);
+            toastContainer.appendChild(toast);
+            setTimeout(() => {
+                toast.classList.remove('translate-x-full', 'opacity-0');
+            }, 10);
+            setTimeout(() => {
+                const toastToRemove = document.getElementById(toastId);
+                if (toastToRemove) {
+                    toastToRemove.classList.add('translate-x-full', 'opacity-0');
+                    toastToRemove.addEventListener('transitionend', () => toastToRemove.remove());
+                }
+            }, 4000);
+        }
+        
+        function updateFavicon(hasNewMessage) {
+            favicon.href = hasNewMessage ? newMessageFaviconHref : originalFaviconHref;
+        }
+
+        // --- NEW: PUSH NOTIFICATION & SERVICE WORKER ---
+        /**
+         * Converts a VAPID public key string to a Uint8Array.
+         */
+        function urlBase64ToUint8Array(base64String) {
+            const padding = '='.repeat((4 - base64String.length % 4) % 4);
+            const base64 = (base64String + padding).replace(/-/g, '+').replace(/_/g, '/');
+            const rawData = window.atob(base64);
+            const outputArray = new Uint8Array(rawData.length);
+            for (let i = 0; i < rawData.length; ++i) {
+                outputArray[i] = rawData.charCodeAt(i);
             }
+            return outputArray;
+        }
+
+        /**
+         * Registers the service worker and subscribes to push notifications.
+         */
+        async function registerServiceWorkerAndSubscribe() {
+            if (!('serviceWorker' in navigator) || !('PushManager' in window)) {
+                console.warn('Push messaging is not supported');
+                return;
+            }
+
+            try {
+                const swRegistration = await navigator.serviceWorker.register('/service-worker.js');
+                console.log('Service Worker registered:', swRegistration);
+
+                let subscription = await swRegistration.pushManager.getSubscription();
+                if (subscription === null) {
+                    console.log('No subscription found, creating new one.');
+                    subscription = await swRegistration.pushManager.subscribe({
+                        userVisibleOnly: true,
+                        applicationServerKey: urlBase64ToUint8Array(VAPID_PUBLIC_KEY)
+                    });
+                }
+
+                await fetch(`${BACKEND_URL}/api/save-subscription`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ subscription: subscription, roomId: currentUserId })
+                });
+
+                console.log('Push subscription sent to server.');
+            } catch (error) {
+                console.error('Service Worker registration or subscription failed:', error);
+            }
+        }
+
+        // --- INITIALIZATION & UI NAVIGATION ---
+        function initializeSocketConnection() {
+            if (socket) socket.disconnect();
             socket = io(BACKEND_URL);
             setupSocketListeners();
         }
 
-        // --- SCREEN & UI NAVIGATION ---
         function showScreen(screen) {
             [welcomeScreen, loginScreen, chatInterface].forEach(s => s.classList.add('hidden'));
             screen.classList.remove('hidden');
-            screen.classList.add('flex');
+            if(screen === chatInterface) {
+                screen.classList.add('flex', 'md:flex');
+            } else {
+                 screen.classList.add('flex');
+            }
+        }
+        
+        function showChatWindowOnly() {
+             if (window.innerWidth < 768) {
+                chatListPanel.classList.add('hidden');
+                chatWindowPanel.classList.remove('hidden');
+                chatWindowPanel.classList.add('flex');
+            }
         }
 
         startChatButton.addEventListener('click', () => {
+            // UPDATED: Call the new function
+            registerServiceWorkerAndSubscribe();
+
+            displayName = displayNameInput.value.trim() || 'Sư Huynh Vô Danh';
+            localStorage.setItem('chatDisplayName', displayName);
             if (!currentUserId) {
                 currentUserId = 'user_' + Date.now() + Math.random().toString(36).substring(2, 9);
                 localStorage.setItem('chatUserId', currentUserId);
@@ -143,35 +304,31 @@
             isAdmin = false;
             initializeSocketConnection();
             showScreen(chatInterface);
-            setupUserView(currentUserId);
+            setupUserView({ userId: currentUserId, name: displayName });
         });
 
+        // (Other event listeners like admin login, logout, etc. remain the same)
         adminLoginPromptButton.addEventListener('click', () => showScreen(loginScreen));
         backToWelcomeButton.addEventListener('click', () => showScreen(welcomeScreen));
-        
         const handleLogout = () => {
-            localStorage.removeItem('adminToken');
-            localStorage.removeItem('chatUserId');
-            isAdmin = false;
-            currentUserId = null;
-            if (socket) socket.disconnect();
-            showScreen(welcomeScreen);
+            localStorage.clear();
+            window.location.reload();
         };
         logoutButton.addEventListener('click', handleLogout);
         userLogoutButton.addEventListener('click', handleLogout);
-
-        // --- AUTH & VIEW SETUP ---
+        openChatListButton.addEventListener('click', () => {
+            chatListPanel.classList.remove('hidden');
+            chatListPanel.classList.add('flex');
+            chatWindowPanel.classList.add('hidden');
+        });
+        closeChatListButton.addEventListener('click', showChatWindowOnly);
         loginForm.addEventListener('submit', async e => {
             e.preventDefault();
-            loginError.textContent = '';
-            const email = loginForm.email.value;
-            const password = loginForm.password.value;
-            
             try {
                 const response = await fetch(`${BACKEND_URL}/login`, {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ email, password })
+                    body: JSON.stringify({ email: loginForm.email.value, password: loginForm.password.value })
                 });
                 if (!response.ok) throw new Error('Login failed');
                 const { token } = await response.json();
@@ -179,181 +336,282 @@
                 isAdmin = true;
                 initializeSocketConnection();
                 showScreen(chatInterface);
-                setupAdminView();
             } catch (err) {
                 loginError.textContent = "Sai email hoặc mật khẩu.";
             }
         });
 
+
         function setupAdminView() {
             chatListPanel.classList.remove('hidden');
-            chatListPanel.classList.add('md:flex');
+            chatListPanel.classList.add('flex');
+            chatWindowPanel.classList.remove('hidden');
+            chatWindowPanel.classList.add('flex');
+            if (window.innerWidth < 768) {
+                chatWindowPanel.classList.add('hidden');
+            }
             adminPlaceholder.classList.remove('hidden');
             placeholder.classList.add('hidden');
             messageFooter.classList.add('hidden');
             chatHeaderTitle.textContent = "Bảng điều khiển";
+            lockChatButton.classList.add('hidden');
+            openChatListButton.classList.remove('hidden');
+            userLogoutButton.classList.add('hidden');
             socket.emit('admin:join');
         }
 
-        function setupUserView(userId) {
+        function setupUserView({ userId, name }) {
             currentRoomId = userId;
             chatListPanel.classList.add('hidden');
+            chatWindowPanel.classList.remove('hidden');
+            chatWindowPanel.classList.add('flex');
             adminPlaceholder.classList.add('hidden');
             placeholder.classList.remove('hidden');
             messageFooter.classList.remove('hidden');
-            chatHeaderTitle.textContent = "Pháp Đàm Trực Tuyến";
-            socket.emit('user:join', userId);
+            chatHeaderTitle.textContent = `${name}`;
+            openChatListButton.classList.add('hidden');
+            userLogoutButton.classList.remove('hidden');
+            lockChatButton.classList.add('hidden');
+            socket.emit('user:join', { userId, displayName: name });
         }
-
-        // --- SOCKET.IO LISTENERS ---
+        
+        // --- SOCKET.IO & CHAT LOGIC ---
+        // (All other functions here remain mostly the same, only the `newMessage` listener is slightly adjusted)
         function setupSocketListeners() {
             socket.on('connect', () => {
-                console.log('Connected to server with ID:', socket.id);
-                // Re-join room if user refreshes
                 const token = localStorage.getItem('adminToken');
-                if (token) {
-                    isAdmin = true;
+                if (token && isAdmin) {
                     setupAdminView();
-                } else if (currentUserId) {
-                    isAdmin = false;
-                    setupUserView(currentUserId);
+                } else if (currentUserId && !isAdmin) {
+                    setupUserView({ userId: currentUserId, name: displayName });
                 }
             });
 
             socket.on('chatList', renderChatRoomList);
             socket.on('roomMessages', renderMessages);
+            socket.on('roomDetails', ({ messages, isClosed }) => { 
+                isCurrentChatLocked = isClosed;
+                renderMessages(messages);
+                if(!isAdmin) updateUserMessageInputLock();
+            });
+
             socket.on('newMessage', (message) => {
+                const isScrolledToBottom = messagesContainer.scrollHeight - messagesContainer.clientHeight <= messagesContainer.scrollTop + 5;
                 if (message.roomId === currentRoomId) {
                     appendMessage(message);
-                    scrollToBottom();
+                    if (isScrolledToBottom) {
+                        scrollToBottom();
+                    } else if (!document.hidden) {
+                        showToastNotification(message);
+                    }
                 }
+
                 if (document.hidden) {
-                    document.title = `(Mới) ${originalTitle}`;
                     notificationSound.triggerAttackRelease("C5", "8n");
+                    document.title = `(Mới) ${message.displayName}`;
+                    updateFavicon(true);
                 }
             });
+            
+            socket.on('chat:locked', ({ roomId, isLocked }) => {
+                if(currentRoomId === roomId) {
+                   isCurrentChatLocked = isLocked;
+                   if (!isAdmin) updateUserMessageInputLock();
+                }
+                const roomItem = document.querySelector(`#chat-list-container > div[data-room-id="${roomId}"]`);
+                if(roomItem) {
+                    const lockIconSvg = `<svg class="w-4 h-4 text-gray-500" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M10 1a4.5 4.5 0 00-4.5 4.5V9H5a2 2 0 00-2 2v6a2 2 0 002 2h10a2 2 0 002-2v-6a2 2 0 00-2-2h-.5V5.5A4.5 4.5 0 0010 1zm3 8V5.5a3 3 0 10-6 0V9h6z" clip-rule="evenodd" /></svg>`;
+                    const lockIconContainer = roomItem.querySelector('.lock-icon-container');
+                    if(isLocked) {
+                        roomItem.classList.add('opacity-60');
+                        if(lockIconContainer) lockIconContainer.innerHTML = lockIconSvg;
+                    } else {
+                        roomItem.classList.remove('opacity-60');
+                         if(lockIconContainer) lockIconContainer.innerHTML = '';
+                    }
+                }
+            });
+            
+            socket.on('chatError', (errorMessage) => {
+                alert(errorMessage);
+            });
         }
-
-        // --- ADMIN: CHAT ROOM LIST ---
         function renderChatRoomList(rooms) {
             chatListContainer.innerHTML = '';
             if (rooms.length === 0) {
                 chatListContainer.innerHTML = `<p class="p-4 text-center text-gray-500">Chưa có cuộc trò chuyện nào.</p>`;
             } else {
-                rooms.forEach(renderChatRoomItem);
+                rooms.forEach(room => renderChatRoomItem(room));
             }
         }
-
         function renderChatRoomItem(room) {
             const item = document.createElement('div');
             item.className = `p-4 border-b border-gray-200 cursor-pointer hover:bg-[#f5f1e9] transition ${room._id === currentRoomId ? 'bg-[#e6dacb]' : ''}`;
+            if(room.isClosed) item.classList.add('opacity-60');
             item.dataset.roomId = room._id;
-
             const lastMessageTime = room.timestamp ? new Date(room.timestamp).toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' }) : '';
-            
             item.innerHTML = `
                 <div class="flex justify-between items-center">
-                    <p class="font-bold text-sm truncate text-[#6B4F4F]">User: ${room._id.substring(0, 12)}</p>
+                    <p class="font-bold text-sm truncate text-[#6B4F4F]">${room.displayName || 'Sư huynh ẩn danh'}</p>
                     <p class="text-xs text-gray-500">${lastMessageTime}</p>
                 </div>
                 <div class="flex justify-between items-start mt-1">
                     <p class="text-sm text-gray-600 truncate pr-2">${room.lastMessage || '...'}</p>
-                    ${room.hasUnreadAdmin ? '<span class="w-3 h-3 bg-red-500 rounded-full flex-shrink-0"></span>' : ''}
+                    <div class="flex items-center space-x-2 flex-shrink-0">
+                       <span class="lock-icon-container">
+                           ${room.isClosed ? `<svg class="w-4 h-4 text-gray-500" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M10 1a4.5 4.5 0 00-4.5 4.5V9H5a2 2 0 00-2 2v6a2 2 0 002 2h10a2 2 0 002-2v-6a2 2 0 00-2-2h-.5V5.5A4.5 4.5 0 0010 1zm3 8V5.5a3 3 0 10-6 0V9h6z" clip-rule="evenodd" /></svg>` : ''}
+                       </span>
+                       ${room.hasUnreadAdmin ? '<span class="w-3 h-3 bg-red-500 rounded-full"></span>' : ''}
+                    </div>
                 </div>
             `;
             item.addEventListener('click', () => {
                 currentRoomId = room._id;
+                isCurrentChatLocked = room.isClosed;
+                updateLockUI();
                 socket.emit('admin:viewRoom', room._id);
-                chatHeaderTitle.textContent = `Trò chuyện với User ${room._id.substring(0, 12)}`;
+                chatHeaderTitle.textContent = `${room.displayName || 'Sư huynh ẩn danh'}`;
                 messageFooter.classList.remove('hidden');
                 document.querySelectorAll('#chat-list-container > div').forEach(el => {
                     el.classList.toggle('bg-[#e6dacb]', el.dataset.roomId === room._id);
                 });
+                showChatWindowOnly();
             });
             chatListContainer.appendChild(item);
         }
-
-        // --- CORE CHAT LOGIC ---
         function renderMessages(messages) {
             messagesDiv.innerHTML = '';
             if (messages.length === 0) {
-                placeholder.classList.remove('hidden');
+                adminPlaceholder.classList.toggle('hidden', !isAdmin);
+                placeholder.classList.toggle('hidden', isAdmin);
             } else {
                 placeholder.classList.add('hidden');
+                adminPlaceholder.classList.add('hidden');
                 messages.forEach(appendMessage);
             }
             scrollToBottom();
         }
-
         messageForm.addEventListener('submit', e => {
             e.preventDefault();
             const text = messageInput.value.trim();
             if (!text || !currentRoomId || !socket) return;
-            
             socket.emit('sendMessage', {
                 roomId: currentRoomId,
                 senderId: isAdmin ? 'admin' : currentUserId,
                 text,
-                isAdmin
+                isAdmin,
+                displayName: isAdmin ? 'Quản trị viên' : displayName
             });
             messageInput.value = '';
         });
-
         function appendMessage(msg) {
             placeholder.classList.add('hidden');
+            adminPlaceholder.classList.add('hidden');
             const wrapper = document.createElement('div');
             const bubble = document.createElement('div');
             const time = document.createElement('div');
-
-            wrapper.classList.add('flex', 'flex-col');
-            bubble.classList.add('max-w-xs', 'md:max-w-md', 'lg:max-w-lg', 'px-4', 'py-2', 'rounded-2xl', 'break-words');
+            const nameSpan = document.createElement('div');
+            const messageContentDiv = document.createElement('div');
+            wrapper.classList.add('flex', 'flex-col', 'w-full');
+            bubble.classList.add('max-w-[85%]', 'sm:max-w-md', 'px-4', 'py-2', 'rounded-2xl', 'break-words');
             time.classList.add('text-xs', 'text-gray-500', 'mt-1');
-
+            nameSpan.classList.add('font-bold', 'text-xs', 'block', 'mb-1');
             const msgDate = msg.timestamp ? new Date(msg.timestamp) : new Date();
             time.textContent = msgDate.toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' });
-
             if (msg.isAdmin) {
                 wrapper.classList.add('items-end');
-                bubble.classList.add('bg-[#c19a6b]', 'text-white');
+                bubble.classList.add('bg-[#6B4F4F]', 'text-white', 'shadow-md');
                 time.classList.add('text-right');
+                nameSpan.innerHTML = `<svg class="w-4 h-4 inline-block mr-1 text-yellow-300" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clip-rule="evenodd" /></svg> Quản trị viên`;
+                nameSpan.classList.add('text-yellow-200');
             } else {
                 wrapper.classList.add('items-start');
                 bubble.classList.add('bg-white', 'shadow-sm');
                 time.classList.add('text-left');
+                nameSpan.textContent = msg.displayName || 'Sư Huynh';
+                nameSpan.classList.add('text-gray-900');
             }
-
-            bubble.textContent = msg.text;
+            messageContentDiv.innerHTML = linkify(msg.text, msg.isAdmin);
+            bubble.appendChild(nameSpan);
+            bubble.appendChild(messageContentDiv);
             wrapper.appendChild(bubble);
             wrapper.appendChild(time);
             messagesDiv.appendChild(wrapper);
         }
-
         function scrollToBottom() {
             messagesContainer.scrollTop = messagesContainer.scrollHeight;
         }
-
+        lockChatButton.addEventListener('click', () => {
+            if (!isAdmin || !currentRoomId) return;
+            socket.emit('admin:toggleLock', { roomId: currentRoomId, isLocked: !isCurrentChatLocked });
+            isCurrentChatLocked = !isCurrentChatLocked;
+            updateLockUI();
+        });
+        function updateLockUI() {
+            if (!isAdmin || !currentRoomId) {
+                lockChatButton.classList.add('hidden');
+                return;
+            }
+            lockChatButton.classList.remove('hidden');
+            if (isCurrentChatLocked) {
+                lockChatText.textContent = 'Mở khoá';
+                lockChatButton.classList.remove('bg-red-500', 'hover:bg-red-600');
+                lockChatButton.classList.add('bg-green-500', 'hover:bg-green-600');
+                lockIcon.classList.add('hidden');
+                unlockIcon.classList.remove('hidden');
+            } else {
+                lockChatText.textContent = 'Khoá';
+                lockChatButton.classList.remove('bg-green-500', 'hover:bg-green-600');
+                lockChatButton.classList.add('bg-red-500', 'hover:bg-red-600');
+                unlockIcon.classList.add('hidden');
+                lockIcon.classList.remove('hidden');
+            }
+        }
+        function updateUserMessageInputLock() {
+            const button = messageForm.querySelector('button[type="submit"]');
+            let lockNotice = document.getElementById('lock-notice');
+            if (isCurrentChatLocked) {
+                messageInput.disabled = true;
+                button.disabled = true;
+                messageInput.placeholder = 'Cuộc trò chuyện này đã bị khoá.';
+                if (!lockNotice) {
+                    lockNotice = document.createElement('p');
+                    lockNotice.id = 'lock-notice';
+                    lockNotice.className = 'text-center text-xs text-red-600 pb-2';
+                    messageFooter.prepend(lockNotice);
+                }
+                lockNotice.textContent = 'Quản trị viên đã khoá cuộc trò chuyện này.';
+            } else {
+                messageInput.disabled = false;
+                button.disabled = false;
+                messageInput.placeholder = 'Nhập câu hỏi của bạn...';
+                if (lockNotice) lockNotice.remove();
+            }
+        }
         document.addEventListener('visibilitychange', () => {
             if (!document.hidden) {
                 document.title = originalTitle;
+                updateFavicon(false);
             }
         });
-        
-        // Check for existing session on page load
-        const adminToken = localStorage.getItem('adminToken');
-        if(adminToken) {
-             isAdmin = true;
-             initializeSocketConnection();
-             showScreen(chatInterface);
-             setupAdminView();
-        } else if (currentUserId) {
-             isAdmin = false;
-             initializeSocketConnection();
-             showScreen(chatInterface);
-             setupUserView(currentUserId);
-        } else {
-            showScreen(welcomeScreen);
+        function autoInitialize() {
+            const adminToken = localStorage.getItem('adminToken');
+            displayName = localStorage.getItem('chatDisplayName');
+            currentUserId = localStorage.getItem('chatUserId');
+            if (displayName) displayNameInput.value = displayName;
+            if (adminToken) {
+                isAdmin = true;
+                initializeSocketConnection();
+                showScreen(chatInterface);
+            } else if (currentUserId) {
+                isAdmin = false;
+                initializeSocketConnection();
+                showScreen(chatInterface);
+            } else {
+                showScreen(welcomeScreen);
+            }
         }
-
+        autoInitialize();
     </script>
 </body>
 </html>
