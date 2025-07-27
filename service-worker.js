@@ -1,12 +1,8 @@
-const CACHE_NAME = 'chat-app-cache-v4'; // Increased version
+const CACHE_NAME = 'chat-app-cache-v-stable-final'; // Increased version to ensure update
 const urlsToCache = [
   '/',
   '/index.html',
   '/manifest.json',
-  'https://cdn.tailwindcss.com',
-  'https://cdnjs.cloudflare.com/ajax/libs/tone/14.7.77/Tone.js',
-  'https://cdn.socket.io/4.6.1/socket.io.min.js',
-  'https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap',
   '/icons/icon-192x192.png',
   '/icons/icon-512x512.png'
 ];
@@ -14,9 +10,12 @@ const urlsToCache = [
 self.addEventListener('install', (event) => {
   event.waitUntil(
     caches.open(CACHE_NAME)
-      .then((cache) => cache.addAll(urlsToCache))
+      .then((cache) => {
+        console.log('Opened cache');
+        return cache.addAll(urlsToCache);
+      })
   );
-  self.skipWaiting();
+  self.skipWaiting(); // Force the waiting service worker to become the active service worker.
 });
 
 self.addEventListener('activate', (event) => {
@@ -26,85 +25,99 @@ self.addEventListener('activate', (event) => {
       return Promise.all(
         cacheNames.map((cacheName) => {
           if (cacheWhitelist.indexOf(cacheName) === -1) {
+            console.log('Deleting old cache:', cacheName);
             return caches.delete(cacheName);
           }
         })
       );
-    }).then(() => self.clients.claim())
+    }).then(() => self.clients.claim()) // Take control of all open clients.
   );
 });
 
 self.addEventListener('fetch', (event) => {
-  if (event.request.method !== 'GET') return;
+  // Only handle GET requests
+  if (event.request.method !== 'GET') {
+    return;
+  }
+  
   event.respondWith(
     caches.match(event.request)
-      .then((response) => response || fetch(event.request))
+      .then((response) => {
+        // Cache hit - return response
+        if (response) {
+          return response;
+        }
+        // Not in cache - fetch from network
+        return fetch(event.request);
+      })
   );
 });
 
-// --- UNIFIED NOTIFICATION DISPLAY FUNCTION ---
+// --- Unified notification display function ---
 function displayNotification(payload) {
-    const { title, body, url } = payload;
+    const title = payload.title || 'Tin nhắn mới';
     const options = {
-        body: body || 'Bạn có một tin nhắn mới.',
+        body: payload.body || 'Bạn có một tin nhắn mới.',
         icon: '/icons/icon-192x192.png',
         badge: '/icons/icon-192x192.png',
-        vibrate: [200, 100, 200],
-        tag: url, // Group notifications by the URL
-        renotify: true,
+        vibrate: [200, 100, 200], // Standard vibration pattern
+        tag: payload.url, // Group notifications by the chat room URL
+        renotify: true, // Vibrate and play sound for new messages in the same chat
         data: {
-            url: url || '/'
+            url: payload.url || '/'
         },
         actions: [
             { action: 'explore', title: '➡️ Trả lời' },
             { action: 'close', title: 'Đóng' }
         ]
     };
-    // self.registration.showNotification returns a promise, which we must use
-    return self.registration.showNotification(title || 'Tin nhắn mới', options);
+    return self.registration.showNotification(title, options);
 }
 
-// --- LISTENER FOR PUSH EVENTS FROM SERVER ---
+// --- Listener for Push Events from server (when app is closed/backgrounded) ---
 self.addEventListener('push', (event) => {
-    if (!event.data) return;
     try {
         const data = event.data.json();
-        console.log('Push received from server:', data);
+        console.log('Push event received from server:', data);
         event.waitUntil(displayNotification(data));
     } catch (e) {
-        console.error('Error parsing push data:', e);
+        console.error('Error handling push event:', e);
     }
 });
 
-// --- LISTENER FOR MESSAGES FROM THE CLIENT PAGE (index.html) ---
+// --- Listener for Messages from the client page (index.html, when app is open) ---
 self.addEventListener('message', (event) => {
     if (event.data && event.data.type === 'SHOW_NOTIFICATION') {
-        console.log('Notification request from client:', event.data.payload);
-        // This doesn't need to be in a waitUntil as the service worker is already active
-        displayNotification(event.data.payload);
+        console.log('Notification request received from client:', event.data.payload);
+        // Don't need waitUntil here as the page is active, but it doesn't hurt.
+        event.waitUntil(displayNotification(event.data.payload));
     }
 });
 
-// --- LISTENER FOR NOTIFICATION CLICKS ---
+// --- Listener for Clicks on the notification ---
 self.addEventListener('notificationclick', (event) => {
     const clickedNotification = event.notification;
     clickedNotification.close();
 
+    // Do nothing if the user clicks the "Close" action
     if (event.action === 'close') {
         return;
     }
 
-    const urlToOpen = event.notification.data.url;
+    const urlToOpen = new URL(event.notification.data.url, self.location.origin).href;
+
     event.waitUntil(
-        clients.matchAll({ type: 'window', includeUncontrolled: true })
-        .then((clientList) => {
+        clients.matchAll({
+            type: 'window',
+            includeUncontrolled: true
+        }).then((clientList) => {
+            // Check if a window is already open with the same URL
             for (const client of clientList) {
-                // If a window is already open, focus it
-                if (client.url === self.location.origin + '/' && 'focus' in client) {
+                if (client.url === urlToOpen && 'focus' in client) {
                     return client.focus();
                 }
             }
-            // Otherwise, open a new window
+            // If not, open a new window
             if (clients.openWindow) {
                 return clients.openWindow(urlToOpen);
             }
