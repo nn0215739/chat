@@ -1,4 +1,5 @@
-const CACHE_NAME = 'chat-app-cache-v3-stable'; // Tên cache mới để đảm bảo cập nhật
+// --- UPDATED --- Tăng phiên bản CACHE_NAME để đảm bảo service worker được cập nhật
+const CACHE_NAME = 'chat-app-cache-v4-stable'; 
 const urlsToCache = [
   '/',
   '/index.html',
@@ -34,15 +35,33 @@ self.addEventListener('activate', (event) => {
   );
 });
 
+// --- UPDATED --- Sử dụng chiến lược "Stale-While-Revalidate"
+// Chiến lược này giúp ứng dụng tải nhanh hơn bằng cách hiển thị nội dung từ cache ngay lập tức,
+// đồng thời gửi yêu cầu ra mạng để lấy phiên bản mới nhất và cập nhật cache cho lần truy cập sau.
 self.addEventListener('fetch', (event) => {
-  if (event.request.method !== 'GET') return;
+    // Bỏ qua các yêu cầu không phải là GET hoặc các yêu cầu đến máy chủ khác (ví dụ: API backend, CDN)
+    if (event.request.method !== 'GET' || !event.request.url.startsWith(self.location.origin)) {
+        return;
+    }
 
-  event.respondWith(
-    caches.match(event.request)
-      .then((response) => {
-        return response || fetch(event.request);
-      })
-  );
+    event.respondWith(
+        caches.open(CACHE_NAME).then((cache) => {
+            return cache.match(event.request).then((cachedResponse) => {
+                // Tạo một promise để lấy dữ liệu từ mạng
+                const fetchedResponsePromise = fetch(event.request).then((networkResponse) => {
+                    // Cập nhật cache bằng dữ liệu mới từ mạng
+                    cache.put(event.request, networkResponse.clone());
+                    return networkResponse;
+                }).catch(error => {
+                    console.error('Fetch failed:', error);
+                    // Có thể trả về một trang offline mặc định ở đây nếu cần
+                });
+
+                // Trả về dữ liệu từ cache ngay lập tức nếu có, nếu không thì đợi dữ liệu từ mạng
+                return cachedResponse || fetchedResponsePromise;
+            });
+        })
+    );
 });
 
 
@@ -54,7 +73,7 @@ function displaySystemNotification(payload) {
         icon: '/icons/icon-192x192.png',
         badge: '/icons/icon-192x192.png',
         vibrate: [200, 100, 200],
-        tag: payload.tag, // Gom nhóm thông báo theo tag (ví dụ: roomId)
+        tag: payload.tag,
         renotify: true,
         data: {
             url: payload.url || '/'
@@ -74,7 +93,6 @@ self.addEventListener('push', (event) => {
         event.waitUntil(displaySystemNotification(data));
     } catch (e) {
         console.error('Error handling push event:', e);
-        // Có thể hiển thị một thông báo mặc định nếu dữ liệu push bị lỗi
         const defaultPayload = { title: 'Bạn có tin nhắn mới' };
         event.waitUntil(displaySystemNotification(defaultPayload));
     }
@@ -104,7 +122,6 @@ self.addEventListener('notificationclick', (event) => {
             includeUncontrolled: true
         }).then((clientList) => {
             for (const client of clientList) {
-                // Chuẩn hóa cả hai URL trước khi so sánh
                 if (new URL(client.url).href === urlToOpen && 'focus' in client) {
                     return client.focus();
                 }
