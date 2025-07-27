@@ -1,4 +1,4 @@
-const CACHE_NAME = 'chat-app-cache-v2'; // Increased version to force update
+const CACHE_NAME = 'chat-app-cache-v3'; // Increased version again
 const urlsToCache = [
   '/',
   '/index.html',
@@ -25,35 +25,6 @@ self.addEventListener('install', (event) => {
   self.skipWaiting(); // Activate the new service worker immediately
 });
 
-// Fetch event: serve from cache first, then network
-self.addEventListener('fetch', (event) => {
-  // We only want to cache GET requests
-  if (event.request.method !== 'GET') {
-      return;
-  }
-  event.respondWith(
-    caches.match(event.request)
-      .then((response) => {
-        if (response) {
-          return response; // Return from cache
-        }
-        // If not in cache, fetch from network
-        return fetch(event.request).then(
-            (networkResponse) => {
-                // Optionally, you can cache dynamic requests here if needed
-                return networkResponse;
-            }
-        ).catch(() => {
-            // Handle offline case for navigation requests
-            if (event.request.mode === 'navigate') {
-                // You could return an offline.html page here
-                // return caches.match('/offline.html');
-            }
-        });
-      })
-  );
-});
-
 // Activate event: clean up old caches
 self.addEventListener('activate', (event) => {
   const cacheWhitelist = [CACHE_NAME];
@@ -67,11 +38,24 @@ self.addEventListener('activate', (event) => {
           }
         })
       );
-    }).then(() => self.clients.claim()) // Take control of all open clients
+    }).then(() => self.clients.claim())
   );
 });
 
-// Push notification event listener
+// Fetch event: serve from cache first, then network
+self.addEventListener('fetch', (event) => {
+  if (event.request.method !== 'GET') return;
+  
+  event.respondWith(
+    caches.match(event.request)
+      .then((response) => {
+        return response || fetch(event.request);
+      })
+  );
+});
+
+
+// --- ENHANCED PUSH NOTIFICATION LOGIC ---
 self.addEventListener('push', (event) => {
     if (!event.data) {
         console.log("Push event but no data");
@@ -83,31 +67,52 @@ self.addEventListener('push', (event) => {
 
     const title = data.title || 'Tin nhắn mới';
     const options = {
-        // Main content
         body: data.body || 'Bạn có một tin nhắn mới.',
+        icon: data.icon || '/icons/icon-192x192.png',
+        badge: '/icons/icon-192x192.png', // Small icon for notification bar (Android)
         
-        // Visuals
-        icon: data.icon || '/icons/icon-192x192.png', // Main icon
-        badge: data.badge || '/icons/icon-192x192.png', // Small icon for notification bar (Android)
-
-        // Behavior
-        tag: data.url, // Groups notifications, replaces old one with same tag
-        renotify: true, // Vibrate/play sound even if a notification with the same tag exists
+        // Make notification more engaging
+        vibrate: [200, 100, 200], // Vibrate pattern
+        tag: data.url, // Group notifications by conversation
+        renotify: true, // Re-alert user for new messages in same conversation
         
         // Data to pass to the click event
         data: {
-            url: data.url || '/' // URL to open when clicked
-        }
+            url: data.url || '/' 
+        },
+        
+        //  *** NEW: Action Buttons ***
+        actions: [
+            { 
+                action: 'explore', 
+                title: '➡️ Trả lời',
+                // icon: '/icons/reply-icon.png' // Optional: You can add icons to buttons
+            },
+            { 
+                action: 'close', 
+                title: 'Đóng',
+                // icon: '/icons/close-icon.png'
+            }
+        ]
     };
 
     event.waitUntil(self.registration.showNotification(title, options));
 });
 
-// Notification click event listener
+
+// --- ENHANCED NOTIFICATION CLICK LOGIC ---
 self.addEventListener('notificationclick', (event) => {
     const clickedNotification = event.notification;
-    clickedNotification.close(); // Close the notification
+    clickedNotification.close(); // Always close the notification
 
+    // --- Handle Action Button Clicks ---
+    if (event.action === 'close') {
+        // User clicked the 'Close' button, do nothing further.
+        console.log('Notification closed by user action.');
+        return;
+    }
+
+    // --- Handle Click on Notification Body or 'Explore' Button ---
     const urlToOpen = event.notification.data.url;
 
     event.waitUntil(
@@ -115,11 +120,10 @@ self.addEventListener('notificationclick', (event) => {
             type: 'window',
             includeUncontrolled: true
         }).then((clientList) => {
-            // Check if there's already a window open with the same URL
-            for (let i = 0; i < clientList.length; i++) {
-                const client = clientList[i];
-                // Use .endsWith() to match URLs like /?roomId=... or /admin?roomId=...
-                if (client.url && client.url.endsWith(urlToOpen) && 'focus' in client) {
+            // Check if there's already a window open for this app
+            for (const client of clientList) {
+                // If found, focus it
+                if (client.url === self.location.origin + '/' && 'focus' in client) {
                     return client.focus();
                 }
             }
