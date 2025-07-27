@@ -6,7 +6,6 @@
     <title>HỖ TRỢ TRỰC TUYẾN</title>
     <link id="favicon" rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Ctext y='.9em' font-size='90'%3E💬%3C/text%3E%3C/svg%3E">
     <script src="https://cdn.tailwindcss.com"></script>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/tone/14.7.77/Tone.js"></script>
     <script src="https://cdn.socket.io/4.6.1/socket.io.min.js"></script>
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -19,6 +18,8 @@
         }
         body {
             font-family: 'Inter', sans-serif;
+            opacity: 0; /* Ẩn body ban đầu để chống giật màn hình */
+            transition: opacity 0.3s ease-in-out;
         }
         .scrollable-content::-webkit-scrollbar { width: 6px; }
         .scrollable-content::-webkit-scrollbar-track { background: #f1f1f1; }
@@ -118,7 +119,7 @@
                             <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 12h16M4 18h16"></path></svg>
                         </button>
                         <svg class="w-8 h-8 text-[#D4AF37] hidden sm:block" viewBox="0 0 28 28" fill="currentColor"><path d="M14 0C6.268 0 0 6.268 0 14s6.268 14 14 14 14-6.268 14-14S21.732 0 14 0zm0 26C7.373 26 2 20.627 2 14S7.373 2 14 2s12 5.373 12 12-5.373 12-12 12z"/><path d="M14 4c-5.523 0-10 4.477-10 10s4.477 10 10 10 10-4.477 10-10S19.523 4 14 4zm0 18c-4.418 0-8-3.582-8-8s3.582-8 8-8 8 3.582 8 8-3.582 8-8 8z"/><path d="M14 7c-3.866 0-7 3.134-7 7s3.134 7 7 7 7-3.134 7-7-3.134-7-7-7zm0 12c-2.761 0-5-2.239-5-5s2.239-5 5-5 5 2.239 5 5-2.239 5-5 5z"/></svg>
-                        <h1 id="chat-header-title" class="text-lg font-bold text-[#6B4F4F] ml-2 truncate">Hỗ Trợ Trực Tuyến</h1>
+                        <h1 id="chat-header-title" class="text-lg font-bold text-[#6B4F4F] ml-2 truncate">Hỗ Trợ Trực TuyẾn</h1>
                     </div>
                     <div class="flex items-center space-x-2 flex-shrink-0 ml-2">
                          <button id="delete-conversation-button" class="hidden items-center space-x-2 bg-red-600 text-white font-bold py-2 px-3 rounded-lg hover:bg-red-700 transition" title="Xóa toàn bộ hội thoại">
@@ -226,7 +227,6 @@
             confirmationMessage.textContent = message;
             confirmActionButton.textContent = confirmText;
             
-            // Reset classes and apply new one
             confirmActionButton.className = `px-4 py-2 text-white rounded-lg`;
             confirmActionButton.classList.add(confirmClass, `hover:${confirmClass.replace('600', '700')}`);
 
@@ -329,7 +329,7 @@
             try {
                 const permissionResult = await Notification.requestPermission();
                 if (permissionResult !== 'granted') return;
-                const swRegistration = await navigator.serviceWorker.ready; // Wait for SW to be active
+                const swRegistration = await navigator.serviceWorker.ready;
                 let subscription = await swRegistration.pushManager.getSubscription();
                 if (subscription === null) {
                     subscription = await swRegistration.pushManager.subscribe({
@@ -351,6 +351,8 @@
             [welcomeScreen, loginScreen, chatInterface].forEach(s => s.classList.add('hidden'));
             screen.classList.remove('hidden');
             screen.classList.add('flex');
+            // THAY ĐỔI 2: Hiển thị lại nội dung sau khi đã chọn đúng màn hình
+            document.body.style.opacity = 1;
         }
 
         function showChatList() {
@@ -418,9 +420,9 @@
             window.location.reload();
         };
 
-        logoutButton.addEventListener('click', handleLogout); // Admin logout - direct
+        logoutButton.addEventListener('click', handleLogout);
 
-        userLogoutButton.addEventListener('click', () => { // User logout - with confirmation
+        userLogoutButton.addEventListener('click', () => {
              showCustomConfirmationModal({
                 title: "Xác nhận Đăng Xuất",
                 message: "Sau khi Đăng Xuất, Sư Huynh sẽ không còn nhận được tin nhắn của Quản Trị Viên nữa ạ!",
@@ -505,6 +507,7 @@
                 }
             });
 
+            // LOGIC NOTIFICATION ĐÃ ĐƯỢC SỬA LẠI
             socket.on('newMessage', (message) => {
                 const isScrolledToBottom = messagesContainer.scrollHeight - messagesContainer.clientHeight <= messagesContainer.scrollTop + 5;
                 if (message.roomId === currentRoomId) {
@@ -514,22 +517,20 @@
                 if (message.senderId === (isAdmin ? 'admin' : currentUserId)) {
                     showSendingState(false);
                 }
+
                 const shouldNotify = (!isAdmin && message.isAdmin) || (isAdmin && !message.isAdmin);
+
                 if (shouldNotify) {
-                    const notificationTitle = message.isAdmin ? `Tin nhắn từ Quản trị viên` : `Tin nhắn mới từ ${message.displayName}`;
-                    if ('serviceWorker' in navigator && navigator.serviceWorker.controller) {
-                        navigator.serviceWorker.controller.postMessage({
-                            type: 'SHOW_NOTIFICATION',
-                            payload: {
-                                title: notificationTitle,
-                                body: message.text,
-                                url: `${window.location.origin}/?roomId=${message.roomId}`,
-                                tag: message.roomId
-                            }
+                    if (!document.hidden) {
+                        // KHI APP MỞ: Chỉ hiển thị toast notification, không làm gì khác
+                        showToastNotification({
+                             title: message.isAdmin ? `Tin nhắn từ Quản trị viên` : `Tin nhắn mới từ ${message.displayName}`,
+                             text: message.text
                         });
-                    }
-                    if (document.hidden) {
-                        document.title = `(Mới) ${notificationTitle}`;
+                    } else {
+                        // KHI APP ẨN: Chỉ cập nhật title và favicon.
+                        // Push Notification thật sẽ do server gửi và service-worker xử lý.
+                        document.title = `(Mới) ${message.displayName}`;
                         updateFavicon(true);
                     }
                 }
