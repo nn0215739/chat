@@ -132,7 +132,7 @@
                              <svg id="unlock-icon" class="w-4 h-4 hidden" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor"><path d="M10 2a5 5 0 00-5 5v1h-1a2 2 0 00-2 2v6a2 2 0 002 2h10a2 2 0 002-2v-6a2 2 0 00-2-2h-1V7a5 5 0 00-5-5zm2.5 7.5V7a2.5 2.5 0 00-5 0v.5h5z" fill-rule="evenodd" clip-rule="evenodd" /></svg>
                             <span id="lock-chat-text" class="hidden sm:inline">Khoá</span>
                         </button>
-                         <button id="user-logout-button" class="hidden md:block text-sm text-gray-600 hover:text-[#c19a6b] transition">Thoát</button>
+                         <button id="user-logout-button" class="hidden md:block text-sm text-gray-600 hover:text-[#c19a6b] transition">Đăng Xuất</button>
                     </div>
                 </header>
                 <main id="messages-container" class="flex-grow p-4 md:p-6 overflow-y-auto scrollable-content">
@@ -195,9 +195,13 @@
         const sendMessageButton = document.getElementById('send-message-button');
         const sendIcon = document.getElementById('send-icon');
         const loadingSpinner = document.getElementById('loading-spinner');
+        
         const confirmationModal = document.getElementById('confirmation-modal');
+        const confirmationTitle = document.getElementById('confirmation-title');
+        const confirmationMessage = document.getElementById('confirmation-message');
         const confirmCancelButton = document.getElementById('confirm-cancel-button');
         const confirmActionButton = document.getElementById('confirm-action-button');
+        
         const installPromptContainer = document.getElementById('install-prompt-container');
         const installButton = document.getElementById('install-button');
         const closeInstallPrompt = document.getElementById('close-install-prompt');
@@ -211,23 +215,30 @@
         let currentRoomId = null;
         let isCurrentChatLocked = false;
         const originalTitle = document.title;
-        // TONE.JS REMOVED FROM HERE
         const favicon = document.getElementById('favicon');
         const newMessageFaviconHref = "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Ccircle cx='50' cy='50' r='50' fill='red'/%3E%3Ctext x='50%' y='50%' dominant-baseline='central' text-anchor='middle' font-size='60' fill='white'%3E1%3C/text%3E%3C/svg%3E";
         const originalFaviconHref = favicon.href;
-        let confirmAction = null;
+        let confirmActionCallback = null;
         let deferredInstallPrompt = null;
 
 
         // --- UTILITY FUNCTIONS ---
-        function showConfirmationModal(action) {
+        function showCustomConfirmationModal({ title, message, confirmText, confirmClass = 'bg-red-600', onConfirm }) {
+            confirmationTitle.textContent = title;
+            confirmationMessage.textContent = message;
+            confirmActionButton.textContent = confirmText;
+            
+            // Reset classes and apply new one
+            confirmActionButton.className = `px-4 py-2 text-white rounded-lg`;
+            confirmActionButton.classList.add(confirmClass, `hover:${confirmClass.replace('600', '700')}`);
+
+            confirmActionCallback = onConfirm;
             confirmationModal.classList.remove('hidden');
-            confirmAction = action;
         }
 
         function hideConfirmationModal() {
             confirmationModal.classList.add('hidden');
-            confirmAction = null;
+            confirmActionCallback = null;
         }
 
         function linkify(text, forAdminBubble = false) {
@@ -373,8 +384,8 @@
         }
 
         confirmActionButton.addEventListener('click', () => {
-            if (typeof confirmAction === 'function') {
-                confirmAction();
+            if (typeof confirmActionCallback === 'function') {
+                confirmActionCallback();
             }
             hideConfirmationModal();
         });
@@ -408,8 +419,18 @@
             localStorage.clear();
             window.location.reload();
         };
+
         logoutButton.addEventListener('click', handleLogout);
-        userLogoutButton.addEventListener('click', handleLogout);
+
+        userLogoutButton.addEventListener('click', () => {
+             showCustomConfirmationModal({
+                title: "Xác nhận Đăng Xuất",
+                message: "Sau khi Đăng Xuất, Sư Huynh sẽ không còn nhận được tin nhắn của Quản Trị Viên nữa ạ!",
+                confirmText: "Đăng Xuất",
+                confirmClass: 'bg-orange-500',
+                onConfirm: handleLogout
+            });
+        });
 
         openChatListButton.addEventListener('click', showChatList);
 
@@ -511,13 +532,12 @@
                             payload: {
                                 title: notificationTitle,
                                 body: message.text,
-                                url: `${window.location.origin}/?roomId=${message.roomId}`, // Dùng URL tuyệt đối
-                                tag: message.roomId // Dùng roomId để gom nhóm thông báo
+                                url: `${window.location.origin}/?roomId=${message.roomId}`,
+                                tag: message.roomId
                             }
                         });
                     }
                     
-                    // Nếu tab không hoạt động, cập nhật title và favicon
                     if (document.hidden) {
                         document.title = `(Mới) ${notificationTitle}`;
                         updateFavicon(true);
@@ -747,10 +767,16 @@
         });
 
         deleteConversationButton.addEventListener('click', () => {
-             if (!isAdmin || !currentRoomId) return;
-             showConfirmationModal(() => {
-                 socket.emit('admin:deleteConversation', { roomId: currentRoomId });
-             });
+            if (!isAdmin || !currentRoomId) return;
+            showCustomConfirmationModal({
+                title: "Xác nhận Xóa",
+                message: "Bạn có chắc chắn muốn xóa toàn bộ cuộc hội thoại này không? Hành động này không thể hoàn tác.",
+                confirmText: "Xác nhận Xóa",
+                confirmClass: "bg-red-600",
+                onConfirm: () => {
+                    socket.emit('admin:deleteConversation', { roomId: currentRoomId });
+                }
+            });
         });
 
         function updateLockUI() {
