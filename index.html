@@ -320,13 +320,11 @@
             return outputArray;
         }
 
-        // --- NEW --- Tách logic đăng ký push ra một hàm riêng
         async function subscribeUserToPush() {
             try {
                 const swRegistration = await navigator.serviceWorker.ready;
                 let subscription = await swRegistration.pushManager.getSubscription();
                 if (subscription === null) {
-                    console.log('Subscribing user to push...');
                     subscription = await swRegistration.pushManager.subscribe({
                         userVisibleOnly: true,
                         applicationServerKey: urlBase64ToUint8Array(VAPID_PUBLIC_KEY)
@@ -337,40 +335,28 @@
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({ subscription: subscription, roomId: currentUserId })
                 });
-                console.log('User is successfully subscribed to push notifications.');
             } catch (error) {
                 console.error('Failed to subscribe the user to push notifications: ', error);
-                showToastNotification({ title: "Lỗi Đăng Ký Thông Báo", text: "Không thể đăng ký nhận thông báo đẩy." }, 'error');
             }
         }
 
-        // --- UPDATED --- Logic xin quyền thông minh hơn
         async function askPermissionAndSubscribe() {
             if (!('serviceWorker' in navigator) || !('PushManager' in window)) {
-                console.log('Push messaging is not supported by this browser.');
                 return;
             }
 
             const permissionStatus = Notification.permission;
-            console.log(`Current notification permission status: ${permissionStatus}`);
-
             if (permissionStatus === 'granted') {
-                console.log('Permission for notifications has already been granted.');
                 await subscribeUserToPush();
             } else if (permissionStatus === 'denied') {
-                console.log('Permission for notifications has been denied.');
                 showToastNotification({
                     title: "Thông Báo Bị Chặn",
                     text: "Bạn đã chặn thông báo. Vui lòng bật lại trong cài đặt trang web của trình duyệt."
                 }, 'error');
             } else {
-                console.log('Requesting permission for notifications.');
                 const permissionResult = await Notification.requestPermission();
                 if (permissionResult === 'granted') {
-                    console.log('Permission for notifications granted.');
                     await subscribeUserToPush();
-                } else {
-                    console.log('Permission for notifications was not granted.');
                 }
             }
         }
@@ -433,7 +419,6 @@
                 localStorage.setItem('chatUserId', currentUserId);
             }
 
-            // Gọi hàm xin quyền đã được cập nhật
             await askPermissionAndSubscribe(); 
             
             isAdmin = false;
@@ -535,19 +520,28 @@
                     updateLockUI();
                 }
             });
-
+            
+            // --- UPDATED LOGIC ---
             socket.on('newMessage', (message) => {
                 const isScrolledToBottom = messagesContainer.scrollHeight - messagesContainer.clientHeight <= messagesContainer.scrollTop + 5;
+                
+                // Append message to UI regardless
                 if (message.roomId === currentRoomId) {
                     appendMessage(message);
                     if (isScrolledToBottom) scrollToBottom();
                 }
+                
                 if (message.senderId === (isAdmin ? 'admin' : currentUserId)) {
                     showSendingState(false);
                 }
-                const shouldNotify = (!isAdmin && message.isAdmin) || (isAdmin && !message.isAdmin);
-                if (shouldNotify) {
+                
+                // Only trigger system notifications if the page is hidden
+                const shouldTriggerSystemNotification = ((!isAdmin && message.isAdmin) || (isAdmin && !message.isAdmin)) && document.hidden;
+            
+                if (shouldTriggerSystemNotification) {
                     const notificationTitle = message.isAdmin ? `Tin nhắn từ Quản trị viên` : `Tin nhắn mới từ ${message.displayName}`;
+            
+                    // Send notification to service worker
                     if ('serviceWorker' in navigator && navigator.serviceWorker.controller) {
                         navigator.serviceWorker.controller.postMessage({
                             type: 'SHOW_NOTIFICATION',
@@ -559,10 +553,10 @@
                             }
                         });
                     }
-                    if (document.hidden) {
-                        document.title = `(Mới) ${notificationTitle}`;
-                        updateFavicon(true);
-                    }
+            
+                    // Update title and favicon
+                    document.title = `(Mới) ${notificationTitle}`;
+                    updateFavicon(true);
                 }
             });
 
