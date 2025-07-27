@@ -1,5 +1,4 @@
-// --- UPDATED --- Tăng phiên bản CACHE_NAME và tinh chỉnh lại chiến lược cache
-const CACHE_NAME = 'chat-app-cache-v6-stable';
+const CACHE_NAME = 'chat-app-cache-v3-stable'; // Tên cache mới để đảm bảo cập nhật
 const urlsToCache = [
   '/',
   '/index.html',
@@ -15,7 +14,7 @@ self.addEventListener('install', (event) => {
         console.log('Opened cache and adding core assets');
         return cache.addAll(urlsToCache);
       })
-      .then(() => self.skipWaiting())
+      .then(() => self.skipWaiting()) // Kích hoạt service worker mới ngay lập tức
   );
 });
 
@@ -31,39 +30,19 @@ self.addEventListener('activate', (event) => {
           }
         })
       );
-    }).then(() => self.clients.claim())
+    }).then(() => self.clients.claim()) // Kiểm soát tất cả các client đang mở
   );
 });
 
-// --- REFINED --- Cập nhật lại chiến lược cache để xử lý dứt điểm
-// Chiến lược này xử lý các yêu cầu điều hướng (navigation) một cách đặc biệt
-// để đảm bảo ứng dụng luôn được khởi chạy từ file index.html gốc,
-// giúp Chrome nhận diện PWA một cách ổn định nhất.
 self.addEventListener('fetch', (event) => {
-    // Chỉ xử lý các yêu cầu GET
-    if (event.request.method !== 'GET') {
-      return;
-    }
-  
-    // Đối với các yêu cầu điều hướng (mở app, tải lại trang),
-    // luôn trả về file index.html chính từ cache.
-    // Điều này đảm bảo ứng dụng hoạt động như một Single Page App (SPA) thực thụ.
-    if (event.request.mode === 'navigate') {
-      event.respondWith(
-        caches.match('/index.html').then(response => {
-          return response || fetch('/index.html');
-        })
-      );
-      return;
-    }
-  
-    // Đối với các tài nguyên khác (CSS, JS, images),
-    // sử dụng chiến lược "Cache First" ổn định.
-    event.respondWith(
-      caches.match(event.request).then(response => {
+  if (event.request.method !== 'GET') return;
+
+  event.respondWith(
+    caches.match(event.request)
+      .then((response) => {
         return response || fetch(event.request);
       })
-    );
+  );
 });
 
 
@@ -75,7 +54,7 @@ function displaySystemNotification(payload) {
         icon: '/icons/icon-192x192.png',
         badge: '/icons/icon-192x192.png',
         vibrate: [200, 100, 200],
-        tag: payload.tag,
+        tag: payload.tag, // Gom nhóm thông báo theo tag (ví dụ: roomId)
         renotify: true,
         data: {
             url: payload.url || '/'
@@ -95,6 +74,7 @@ self.addEventListener('push', (event) => {
         event.waitUntil(displaySystemNotification(data));
     } catch (e) {
         console.error('Error handling push event:', e);
+        // Có thể hiển thị một thông báo mặc định nếu dữ liệu push bị lỗi
         const defaultPayload = { title: 'Bạn có tin nhắn mới' };
         event.waitUntil(displaySystemNotification(defaultPayload));
     }
@@ -124,6 +104,7 @@ self.addEventListener('notificationclick', (event) => {
             includeUncontrolled: true
         }).then((clientList) => {
             for (const client of clientList) {
+                // Chuẩn hóa cả hai URL trước khi so sánh
                 if (new URL(client.url).href === urlToOpen && 'focus' in client) {
                     return client.focus();
                 }
