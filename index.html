@@ -32,14 +32,14 @@
 </head>
 <body class="bg-[#fffbbe] antialiased">
 
-    <!-- Confirmation Modal -->
+    <!-- Confirmation Modal (UPDATED to be dynamic) -->
     <div id="confirmation-modal" class="hidden fixed inset-0 bg-gray-900 bg-opacity-60 flex items-center justify-center z-50">
         <div class="bg-white rounded-lg shadow-xl p-6 w-full max-w-sm mx-4">
-            <h3 class="text-lg font-bold text-gray-800">Xác nhận hành động</h3>
-            <p id="confirmation-message" class="text-gray-600 mt-2">Bạn có chắc chắn muốn xóa toàn bộ cuộc hội thoại này không? Hành động này không thể hoàn tác.</p>
+            <h3 id="confirmation-title" class="text-lg font-bold text-gray-800">Xác nhận hành động</h3>
+            <p id="confirmation-message" class="text-gray-600 mt-2">Bạn có chắc chắn không?</p>
             <div class="mt-6 flex justify-end space-x-4">
                 <button id="confirm-cancel-button" class="px-4 py-2 bg-gray-200 text-gray-800 rounded-lg hover:bg-gray-300">Hủy bỏ</button>
-                <button id="confirm-action-button" class="px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700">Xác nhận Xóa</button>
+                <button id="confirm-action-button" class="px-4 py-2 text-white rounded-lg">Xác nhận</button>
             </div>
         </div>
     </div>
@@ -133,7 +133,8 @@
                              <svg id="unlock-icon" class="w-4 h-4 hidden" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor"><path d="M10 2a5 5 0 00-5 5v1h-1a2 2 0 00-2 2v6a2 2 0 002 2h10a2 2 0 002-2v-6a2 2 0 00-2-2h-1V7a5 5 0 00-5-5zm2.5 7.5V7a2.5 2.5 0 00-5 0v.5h5z" fill-rule="evenodd" clip-rule="evenodd" /></svg>
                             <span id="lock-chat-text" class="hidden sm:inline">Khoá</span>
                         </button>
-                         <button id="user-logout-button" class="hidden md:block text-sm text-gray-600 hover:text-[#c19a6b] transition">Thoát</button>
+                         <!-- UPDATED: Changed text from "Thoát" to "Đăng xuất" -->
+                         <button id="user-logout-button" class="hidden md:block text-sm text-gray-600 hover:text-[#c19a6b] transition">Đăng xuất</button>
                     </div>
                 </header>
                 <main id="messages-container" class="flex-grow p-4 md:p-6 overflow-y-auto scrollable-content">
@@ -201,6 +202,9 @@
         const confirmationModal = document.getElementById('confirmation-modal');
         const confirmCancelButton = document.getElementById('confirm-cancel-button');
         const confirmActionButton = document.getElementById('confirm-action-button');
+        const confirmationTitle = document.getElementById('confirmation-title');
+        const confirmationMessage = document.getElementById('confirmation-message');
+
 
         // PWA Install Prompt Elements
         const installPromptContainer = document.getElementById('install-prompt-container');
@@ -225,10 +229,22 @@
 
 
         // --- UTILITY FUNCTIONS ---
-        function showConfirmationModal(action) {
+        // UPDATED: More versatile confirmation modal
+        function showConfirmationModal(config) {
+            // config = { title, message, confirmText, confirmClass, action }
+            confirmationTitle.textContent = config.title || 'Xác nhận hành động';
+            confirmationMessage.innerHTML = config.message || 'Bạn có chắc chắn không?'; // Use innerHTML for line breaks
+            confirmActionButton.textContent = config.confirmText || 'Xác nhận';
+
+            // Reset and apply classes for the confirm button
+            confirmActionButton.className = 'px-4 py-2 text-white rounded-lg transition-colors';
+            const classes = config.confirmClass || 'bg-red-600 hover:bg-red-700';
+            classes.split(' ').forEach(c => confirmActionButton.classList.add(c));
+            
             confirmationModal.classList.remove('hidden');
-            confirmAction = action;
+            confirmAction = config.action;
         }
+
 
         function hideConfirmationModal() {
             confirmationModal.classList.add('hidden');
@@ -346,13 +362,17 @@
                         applicationServerKey: urlBase64ToUint8Array(VAPID_PUBLIC_KEY)
                     });
                 }
+                
+                // NEW: Logic to save subscription for admin or user
+                const endpoint = isAdmin ? '/api/save-admin-subscription' : '/api/save-subscription';
+                const body = isAdmin ? { subscription } : { subscription, roomId: currentUserId };
 
-                await fetch(`${BACKEND_URL}/api/save-subscription`, {
+                await fetch(`${BACKEND_URL}${endpoint}`, {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ subscription: subscription, roomId: currentUserId })
+                    body: JSON.stringify(body)
                 });
-                console.log('Push subscription details sent to server.');
+                console.log(`Push subscription details sent to server for ${isAdmin ? 'admin' : 'user'}.`);
 
             } catch (error) {
                 console.error('Failed to subscribe to push notifications:', error);
@@ -418,22 +438,35 @@
                 currentUserId = 'user_' + Date.now() + Math.random().toString(36).substring(2, 9);
                 localStorage.setItem('chatUserId', currentUserId);
             }
-
-            await askPermissionAndSubscribe();
-
+            
             isAdmin = false;
+            await askPermissionAndSubscribe(); // User subscribes here
+            
             initializeSocketConnection();
             showScreen(chatInterface);
         });
 
         adminLoginPromptButton.addEventListener('click', () => showScreen(loginScreen));
         backToWelcomeButton.addEventListener('click', () => showScreen(welcomeScreen));
+        
         const handleLogout = () => {
             localStorage.clear();
             window.location.reload();
         };
+
+        // Admin logout in side panel (no confirmation)
         logoutButton.addEventListener('click', handleLogout);
-        userLogoutButton.addEventListener('click', handleLogout);
+
+        // UPDATED: User logout button now shows a confirmation modal
+        userLogoutButton.addEventListener('click', () => {
+            showConfirmationModal({
+                title: 'Thông báo',
+                message: 'Sau khi đăng xuất! Sư Huynh sẽ không nhận được tin nhắn phản hồi của Quản Trị Viên nữa ạ!<br><br>Sư Huynh có thực sự muốn đăng xuất không ạ!',
+                confirmText: 'Đăng xuất',
+                confirmClass: 'bg-orange-500 hover:bg-orange-600',
+                action: handleLogout
+            });
+        });
 
         openChatListButton.addEventListener('click', showChatList);
 
@@ -448,7 +481,10 @@
                 if (!response.ok) throw new Error('Login failed');
                 const { token } = await response.json();
                 localStorage.setItem('adminToken', token);
+                
                 isAdmin = true;
+                await askPermissionAndSubscribe(); // Admin subscribes here
+                
                 initializeSocketConnection();
                 showScreen(chatInterface);
             } catch (err) {
@@ -457,13 +493,8 @@
         });
 
         function setupAdminView() {
-            // For admin, always show the chat list panel.
-            // On mobile, it will be 'flex' due to this line.
             chatListPanel.classList.remove('hidden');
             chatListPanel.classList.add('flex');
-
-            // On mobile, the chat window should initially be hidden for admin until a chat is selected.
-            // On desktop, Tailwind's 'md:flex' will make it visible alongside the chat list.
             chatWindowPanel.classList.add('hidden');
             if (window.innerWidth >= 768) {
                 chatWindowPanel.classList.remove('hidden');
@@ -474,15 +505,15 @@
             placeholder.classList.add('hidden');
             messageFooter.classList.add('hidden');
             chatHeaderTitle.textContent = "Bảng điều khiển";
-            updateAdminControls(false); // Initially hide buttons
+            updateAdminControls(false); 
             openChatListButton.classList.remove('hidden');
             userLogoutButton.classList.add('hidden');
             socket.emit('admin:join');
         }
 
         function setupUserView() {
-            showChatWindow(); // Handles mobile/desktop layout
-            chatListPanel.classList.add('hidden'); // Ensure chat list is hidden for user view
+            showChatWindow(); 
+            chatListPanel.classList.add('hidden');
 
             adminPlaceholder.classList.add('hidden');
             placeholder.classList.remove('hidden');
@@ -490,8 +521,8 @@
             chatHeaderTitle.textContent = `${displayName}`;
             openChatListButton.classList.add('hidden');
             userLogoutButton.classList.remove('hidden');
-            updateAdminControls(false); // Always hide for user
-            currentRoomId = currentUserId; // Ensure currentRoomId is set for user
+            updateAdminControls(false);
+            currentRoomId = currentUserId; 
             socket.emit('user:join', { userId: currentUserId, displayName: displayName });
         }
 
@@ -521,44 +552,34 @@
             socket.on('newMessage', (message) => {
                 const isScrolledToBottom = messagesContainer.scrollHeight - messagesContainer.clientHeight <= messagesContainer.scrollTop + 5;
                 if (message.roomId === currentRoomId) {
-                    // Always append the message to the current chat window
                     appendMessage(message);
                     if (isScrolledToBottom) {
                         scrollToBottom();
                     }
 
-                    // Determine if a notification should be shown for this message
                     let shouldShowNotification = false;
-
-                    if (!isAdmin) { // Current client is a regular user
-                        // User should get a notification ONLY if the message is from the admin
-                        if (message.isAdmin) {
-                            shouldShowNotification = true;
-                        }
-                    } else { // Current client is an admin
-                        // Admin should get a notification ONLY if the message is from a user
-                        if (!message.isAdmin) {
-                            shouldShowNotification = true;
-                        }
+                    if (!isAdmin) {
+                        if (message.isAdmin) shouldShowNotification = true;
+                    } else {
+                        if (!message.isAdmin) shouldShowNotification = true;
                     }
 
                     if (shouldShowNotification) {
                         const notificationTitle = message.isAdmin ? `Tin nhắn mới từ Quản trị viên` : `Tin nhắn mới từ ${message.displayName}`;
-                        if (!document.hidden) { // If tab is active, show toast and play sound
+                        if (!document.hidden) {
                             showToastNotification({ title: notificationTitle, text: message.text });
                             notificationSound.triggerAttackRelease("C5", "8n");
-                        } else { // If tab is hidden, update title and favicon
-                            document.title = `(Mới) ${notificationTitle}`; // Simplified title for hidden tab
+                        } else {
+                            document.title = `(Mới) ${notificationTitle}`;
                             updateFavicon(true);
                             notificationSound.triggerAttackRelease("C5", "8n");
                         }
                     }
                 } else if (isAdmin && message.roomId !== currentRoomId && !message.isAdmin) {
-                    // Admin receives a message for a different room from a user
                     showToastNotification({ title: `Tin nhắn mới từ ${message.displayName}`, text: message.text });
                     notificationSound.triggerAttackRelease("C5", "8n");
                 }
-                showSendingState(false); // Hide loading state after message is received (for self-sent messages)
+                showSendingState(false);
             });
 
             socket.on('chat:locked', ({ roomId, isLocked }) => {
@@ -711,7 +732,6 @@
             });
         });
         function appendMessage(msg) {
-            // FIX: Prevent duplicate messages from being appended
             if (document.getElementById('message-' + msg._id)) {
                 return;
             }
@@ -783,10 +803,17 @@
             socket.emit('admin:toggleLock', { roomId: currentRoomId, isLocked: !isCurrentChatLocked });
         });
 
+        // UPDATED: Call to dynamic confirmation modal
         deleteConversationButton.addEventListener('click', () => {
              if (!isAdmin || !currentRoomId) return;
-             showConfirmationModal(() => {
-                 socket.emit('admin:deleteConversation', { roomId: currentRoomId });
+             showConfirmationModal({
+                title: 'Xác nhận Xóa Hội Thoại',
+                message: 'Bạn có chắc chắn muốn xóa toàn bộ cuộc hội thoại này không? Hành động này không thể hoàn tác.',
+                confirmText: 'Xác nhận Xóa',
+                confirmClass: 'bg-red-600 hover:bg-red-700',
+                action: () => {
+                    socket.emit('admin:deleteConversation', { roomId: currentRoomId });
+                }
              });
         });
 
@@ -841,7 +868,6 @@
 
         window.addEventListener('online', () => {
             showToastNotification({ title: "Đã kết nối lại", text: "Kết nối mạng đã được khôi phục." }, 'success');
-            // Re-enable input if not locked by admin or chat ended
             if (!isCurrentChatLocked && !document.getElementById('end-notice')) {
                 messageInput.disabled = false;
                 sendMessageButton.disabled = false;
@@ -870,25 +896,17 @@
 
         // --- PWA INSTALLATION PROMPT LOGIC ---
         window.addEventListener('beforeinstallprompt', (e) => {
-            // Prevent the mini-infobar from appearing on mobile
             e.preventDefault();
-            // Stash the event so it can be triggered later.
             deferredInstallPrompt = e;
-            // Update UI to notify the user they can install the app
             installPromptContainer.classList.remove('hidden');
         });
 
         installButton.addEventListener('click', async () => {
             if (deferredInstallPrompt) {
-                // Hide the install prompt
                 installPromptContainer.classList.add('hidden');
-                // Show the install prompt
                 deferredInstallPrompt.prompt();
-                // Wait for the user to respond to the prompt
                 const { outcome } = await deferredInstallPrompt.userChoice;
-                // Optionally, send analytics event with outcome of user choice
                 console.log(`User response to the install prompt: ${outcome}`);
-                // We've used the prompt, and can't use it again, clear it.
                 deferredInstallPrompt = null;
                 if (outcome === 'accepted') {
                     showToastNotification({ title: "Cài đặt thành công", text: "Ứng dụng đã được thêm vào màn hình chính!" }, 'success');
@@ -900,13 +918,11 @@
 
         closeInstallPrompt.addEventListener('click', () => {
             installPromptContainer.classList.add('hidden');
-            deferredInstallPrompt = null; // User explicitly closed, so don't show again until next page load
+            deferredInstallPrompt = null;
         });
 
         window.addEventListener('appinstalled', () => {
-            // Hide the install prompt once the app is installed
             installPromptContainer.classList.add('hidden');
-            // Clear the deferred prompt so it can't be used again.
             deferredInstallPrompt = null;
             showToastNotification({ title: "Đã cài đặt!", text: "Ứng dụng Chat đã được cài đặt thành công." }, 'success');
         });
