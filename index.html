@@ -443,6 +443,10 @@
             document.getElementById('chat-header-title').textContent = displayName;
         });
         
+        // FIXED: Added missing event listeners
+        adminLoginPromptButton.addEventListener('click', () => showScreen(loginScreen));
+        backToWelcomeButton.addEventListener('click', () => showScreen(welcomeScreen));
+        
         loginForm.addEventListener('submit', async e => {
             e.preventDefault();
             const response = await fetch(`${BACKEND_URL}/login`, {
