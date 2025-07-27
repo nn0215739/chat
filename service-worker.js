@@ -1,4 +1,4 @@
-const CACHE_NAME = 'chat-app-cache-v-stable-final'; // Increased version to ensure update
+const CACHE_NAME = 'chat-app-cache-v3-stable'; // Tên cache mới để đảm bảo cập nhật
 const urlsToCache = [
   '/',
   '/index.html',
@@ -11,11 +11,11 @@ self.addEventListener('install', (event) => {
   event.waitUntil(
     caches.open(CACHE_NAME)
       .then((cache) => {
-        console.log('Opened cache');
+        console.log('Opened cache and adding core assets');
         return cache.addAll(urlsToCache);
       })
+      .then(() => self.skipWaiting()) // Kích hoạt service worker mới ngay lập tức
   );
-  self.skipWaiting(); // Force the waiting service worker to become the active service worker.
 });
 
 self.addEventListener('activate', (event) => {
@@ -30,39 +30,32 @@ self.addEventListener('activate', (event) => {
           }
         })
       );
-    }).then(() => self.clients.claim()) // Take control of all open clients.
+    }).then(() => self.clients.claim()) // Kiểm soát tất cả các client đang mở
   );
 });
 
 self.addEventListener('fetch', (event) => {
-  // Only handle GET requests
-  if (event.request.method !== 'GET') {
-    return;
-  }
-  
+  if (event.request.method !== 'GET') return;
+
   event.respondWith(
     caches.match(event.request)
       .then((response) => {
-        // Cache hit - return response
-        if (response) {
-          return response;
-        }
-        // Not in cache - fetch from network
-        return fetch(event.request);
+        return response || fetch(event.request);
       })
   );
 });
 
-// --- Unified notification display function ---
-function displayNotification(payload) {
+
+// --- HÀM HIỂN THỊ THÔNG BÁO THỐNG NHẤT ---
+function displaySystemNotification(payload) {
     const title = payload.title || 'Tin nhắn mới';
     const options = {
         body: payload.body || 'Bạn có một tin nhắn mới.',
         icon: '/icons/icon-192x192.png',
         badge: '/icons/icon-192x192.png',
-        vibrate: [200, 100, 200], // Standard vibration pattern
-        tag: payload.url, // Group notifications by the chat room URL
-        renotify: true, // Vibrate and play sound for new messages in the same chat
+        vibrate: [200, 100, 200],
+        tag: payload.tag, // Gom nhóm thông báo theo tag (ví dụ: roomId)
+        renotify: true,
         data: {
             url: payload.url || '/'
         },
@@ -74,32 +67,31 @@ function displayNotification(payload) {
     return self.registration.showNotification(title, options);
 }
 
-// --- Listener for Push Events from server (when app is closed/backgrounded) ---
+// --- LẮNG NGHE SỰ KIỆN PUSH TỪ SERVER ---
 self.addEventListener('push', (event) => {
     try {
         const data = event.data.json();
-        console.log('Push event received from server:', data);
-        event.waitUntil(displayNotification(data));
+        event.waitUntil(displaySystemNotification(data));
     } catch (e) {
         console.error('Error handling push event:', e);
+        // Có thể hiển thị một thông báo mặc định nếu dữ liệu push bị lỗi
+        const defaultPayload = { title: 'Bạn có tin nhắn mới' };
+        event.waitUntil(displaySystemNotification(defaultPayload));
     }
 });
 
-// --- Listener for Messages from the client page (index.html, when app is open) ---
+// --- LẮNG NGHE YÊU CẦU TỪ CLIENT (INDEX.HTML) ---
 self.addEventListener('message', (event) => {
     if (event.data && event.data.type === 'SHOW_NOTIFICATION') {
-        console.log('Notification request received from client:', event.data.payload);
-        // Don't need waitUntil here as the page is active, but it doesn't hurt.
-        event.waitUntil(displayNotification(event.data.payload));
+        event.waitUntil(displaySystemNotification(event.data.payload));
     }
 });
 
-// --- Listener for Clicks on the notification ---
+// --- LẮNG NGHE SỰ KIỆN NHẤP VÀO THÔNG BÁO ---
 self.addEventListener('notificationclick', (event) => {
     const clickedNotification = event.notification;
     clickedNotification.close();
 
-    // Do nothing if the user clicks the "Close" action
     if (event.action === 'close') {
         return;
     }
@@ -111,13 +103,12 @@ self.addEventListener('notificationclick', (event) => {
             type: 'window',
             includeUncontrolled: true
         }).then((clientList) => {
-            // Check if a window is already open with the same URL
             for (const client of clientList) {
-                if (client.url === urlToOpen && 'focus' in client) {
+                // Chuẩn hóa cả hai URL trước khi so sánh
+                if (new URL(client.url).href === urlToOpen && 'focus' in client) {
                     return client.focus();
                 }
             }
-            // If not, open a new window
             if (clients.openWindow) {
                 return clients.openWindow(urlToOpen);
             }
