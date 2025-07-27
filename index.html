@@ -11,7 +11,6 @@
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
-    <!-- PWA: Manifest Link -->
     <link rel="manifest" href="/manifest.json">
     <style>
         html, body {
@@ -212,7 +211,7 @@
         let currentRoomId = null;
         let isCurrentChatLocked = false;
         const originalTitle = document.title;
-        const notificationSound = new Tone.Synth().toDestination();
+        // TONE.JS REMOVED FROM HERE
         const favicon = document.getElementById('favicon');
         const newMessageFaviconHref = "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Ccircle cx='50' cy='50' r='50' fill='red'/%3E%3Ctext x='50%' y='50%' dominant-baseline='central' text-anchor='middle' font-size='60' fill='white'%3E1%3C/text%3E%3C/svg%3E";
         const originalFaviconHref = favicon.href;
@@ -487,46 +486,45 @@
                 }
             });
 
-            // LOGIC CẦN THAY ĐỔI NẰM Ở ĐÂY
+            // LOGIC NOTIFICATION MỚI
             socket.on('newMessage', (message) => {
-                // Determine if a notification should be shown
-                let shouldTriggerSystemNotification = false;
-                if ((!isAdmin && message.isAdmin) || (isAdmin && !message.isAdmin)) {
-                    shouldTriggerSystemNotification = true;
+                // Luôn cập nhật giao diện chat trước
+                const isScrolledToBottom = messagesContainer.scrollHeight - messagesContainer.clientHeight <= messagesContainer.scrollTop + 5;
+                if (message.roomId === currentRoomId) {
+                    appendMessage(message);
+                    if (isScrolledToBottom) scrollToBottom();
                 }
-                
-                if (shouldTriggerSystemNotification) {
+                if (message.senderId === (isAdmin ? 'admin' : currentUserId)) {
+                    showSendingState(false);
+                }
+
+                // Kiểm tra xem có nên gửi thông báo hệ thống không
+                const shouldNotify = (!isAdmin && message.isAdmin) || (isAdmin && !message.isAdmin);
+
+                if (shouldNotify) {
                     const notificationTitle = message.isAdmin ? `Tin nhắn từ Quản trị viên` : `Tin nhắn mới từ ${message.displayName}`;
-                    
+
+                    // Gửi yêu cầu hiển thị thông báo đến Service Worker
                     if ('serviceWorker' in navigator && navigator.serviceWorker.controller) {
                         navigator.serviceWorker.controller.postMessage({
                             type: 'SHOW_NOTIFICATION',
                             payload: {
                                 title: notificationTitle,
                                 body: message.text,
-                                url: `${window.location.pathname}?roomId=${message.roomId}`
+                                url: `${window.location.origin}/?roomId=${message.roomId}`, // Dùng URL tuyệt đối
+                                tag: message.roomId // Dùng roomId để gom nhóm thông báo
                             }
                         });
                     }
-
+                    
+                    // Nếu tab không hoạt động, cập nhật title và favicon
                     if (document.hidden) {
                         document.title = `(Mới) ${notificationTitle}`;
                         updateFavicon(true);
                     }
                 }
-                
-                const isScrolledToBottom = messagesContainer.scrollHeight - messagesContainer.clientHeight <= messagesContainer.scrollTop + 5;
-                if (message.roomId === currentRoomId) {
-                    appendMessage(message);
-                    if (isScrolledToBottom) {
-                        scrollToBottom();
-                    }
-                }
-                
-                if (message.senderId === (isAdmin ? 'admin' : currentUserId)) {
-                    showSendingState(false);
-                }
             });
+
 
             socket.on('chat:locked', ({ roomId, isLocked }) => {
                 if(currentRoomId === roomId) {
