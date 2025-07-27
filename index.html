@@ -195,13 +195,11 @@
         const sendMessageButton = document.getElementById('send-message-button');
         const sendIcon = document.getElementById('send-icon');
         const loadingSpinner = document.getElementById('loading-spinner');
-        
         const confirmationModal = document.getElementById('confirmation-modal');
         const confirmationTitle = document.getElementById('confirmation-title');
         const confirmationMessage = document.getElementById('confirmation-message');
         const confirmCancelButton = document.getElementById('confirm-cancel-button');
         const confirmActionButton = document.getElementById('confirm-action-button');
-        
         const installPromptContainer = document.getElementById('install-prompt-container');
         const installButton = document.getElementById('install-button');
         const closeInstallPrompt = document.getElementById('close-install-prompt');
@@ -331,7 +329,7 @@
             try {
                 const permissionResult = await Notification.requestPermission();
                 if (permissionResult !== 'granted') return;
-                const swRegistration = await navigator.serviceWorker.register('/service-worker.js');
+                const swRegistration = await navigator.serviceWorker.ready; // Wait for SW to be active
                 let subscription = await swRegistration.pushManager.getSubscription();
                 if (subscription === null) {
                     subscription = await swRegistration.pushManager.subscribe({
@@ -420,9 +418,9 @@
             window.location.reload();
         };
 
-        logoutButton.addEventListener('click', handleLogout);
+        logoutButton.addEventListener('click', handleLogout); // Admin logout - direct
 
-        userLogoutButton.addEventListener('click', () => {
+        userLogoutButton.addEventListener('click', () => { // User logout - with confirmation
              showCustomConfirmationModal({
                 title: "Xác nhận Đăng Xuất",
                 message: "Sau khi Đăng Xuất, Sư Huynh sẽ không còn nhận được tin nhắn của Quản Trị Viên nữa ạ!",
@@ -507,9 +505,7 @@
                 }
             });
 
-            // LOGIC NOTIFICATION MỚI
             socket.on('newMessage', (message) => {
-                // Luôn cập nhật giao diện chat trước
                 const isScrolledToBottom = messagesContainer.scrollHeight - messagesContainer.clientHeight <= messagesContainer.scrollTop + 5;
                 if (message.roomId === currentRoomId) {
                     appendMessage(message);
@@ -518,14 +514,9 @@
                 if (message.senderId === (isAdmin ? 'admin' : currentUserId)) {
                     showSendingState(false);
                 }
-
-                // Kiểm tra xem có nên gửi thông báo hệ thống không
                 const shouldNotify = (!isAdmin && message.isAdmin) || (isAdmin && !message.isAdmin);
-
                 if (shouldNotify) {
                     const notificationTitle = message.isAdmin ? `Tin nhắn từ Quản trị viên` : `Tin nhắn mới từ ${message.displayName}`;
-
-                    // Gửi yêu cầu hiển thị thông báo đến Service Worker
                     if ('serviceWorker' in navigator && navigator.serviceWorker.controller) {
                         navigator.serviceWorker.controller.postMessage({
                             type: 'SHOW_NOTIFICATION',
@@ -537,7 +528,6 @@
                             }
                         });
                     }
-                    
                     if (document.hidden) {
                         document.title = `(Mới) ${notificationTitle}`;
                         updateFavicon(true);
