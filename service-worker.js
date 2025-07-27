@@ -1,5 +1,5 @@
-// --- UPDATED --- Tăng phiên bản CACHE_NAME và quay lại chiến lược cache cũ
-const CACHE_NAME = 'chat-app-cache-v5-stable';
+// --- UPDATED --- Tăng phiên bản CACHE_NAME và tinh chỉnh lại chiến lược cache
+const CACHE_NAME = 'chat-app-cache-v6-stable';
 const urlsToCache = [
   '/',
   '/index.html',
@@ -15,7 +15,7 @@ self.addEventListener('install', (event) => {
         console.log('Opened cache and adding core assets');
         return cache.addAll(urlsToCache);
       })
-      .then(() => self.skipWaiting()) // Kích hoạt service worker mới ngay lập tức
+      .then(() => self.skipWaiting())
   );
 });
 
@@ -31,23 +31,38 @@ self.addEventListener('activate', (event) => {
           }
         })
       );
-    }).then(() => self.clients.claim()) // Kiểm soát tất cả các client đang mở
+    }).then(() => self.clients.claim())
   );
 });
 
-// --- REVERTED --- Quay lại chiến lược "Cache first, then network" để ổn định hành vi PWA
-// Chiến lược này ưu tiên tốc độ và tính nhất quán bằng cách luôn tải từ cache nếu có.
-// Nó sẽ giải quyết vấn đề thông báo "sao chép địa chỉ" hiển thị lặp lại.
+// --- REFINED --- Cập nhật lại chiến lược cache để xử lý dứt điểm
+// Chiến lược này xử lý các yêu cầu điều hướng (navigation) một cách đặc biệt
+// để đảm bảo ứng dụng luôn được khởi chạy từ file index.html gốc,
+// giúp Chrome nhận diện PWA một cách ổn định nhất.
 self.addEventListener('fetch', (event) => {
+    // Chỉ xử lý các yêu cầu GET
     if (event.request.method !== 'GET') {
-        return;
+      return;
     }
-
-    event.respondWith(
-        caches.match(event.request).then((response) => {
-            // Trả về từ cache nếu tìm thấy, nếu không thì đi lấy từ mạng.
-            return response || fetch(event.request);
+  
+    // Đối với các yêu cầu điều hướng (mở app, tải lại trang),
+    // luôn trả về file index.html chính từ cache.
+    // Điều này đảm bảo ứng dụng hoạt động như một Single Page App (SPA) thực thụ.
+    if (event.request.mode === 'navigate') {
+      event.respondWith(
+        caches.match('/index.html').then(response => {
+          return response || fetch('/index.html');
         })
+      );
+      return;
+    }
+  
+    // Đối với các tài nguyên khác (CSS, JS, images),
+    // sử dụng chiến lược "Cache First" ổn định.
+    event.respondWith(
+      caches.match(event.request).then(response => {
+        return response || fetch(event.request);
+      })
     );
 });
 
