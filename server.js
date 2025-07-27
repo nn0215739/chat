@@ -12,7 +12,7 @@ const app = express();
 app.use(cors());
 app.use(express.json());
 
-// Serve the service worker file
+// Serve the service worker file from the root directory
 app.use(express.static(__dirname));
 
 const server = http.createServer(app);
@@ -62,16 +62,44 @@ const chatRoomSchema = new mongoose.Schema({
   lastMessage: { type: String },
   timestamp: { type: Date },
   hasUnreadAdmin: { type: Boolean, default: false },
-  isClosed: { type: Boolean, default: false }, // To lock/unlock chat
+  isClosed: { type: Boolean, default: false }, 
   pushSubscription: { type: Object } // To store user's push subscription
 });
 const ChatRoom = mongoose.model('ChatRoom', chatRoomSchema);
+
+// NEW: Schema to store admin's push subscriptions
+const adminSubscriptionSchema = new mongoose.Schema({
+    subscription: { type: Object, required: true }
+});
+const AdminSubscription = mongoose.model('AdminSubscription', adminSubscriptionSchema);
+
 
 const adminSchema = new mongoose.Schema({
     email: { type: String, required: true, unique: true },
     password: { type: String, required: true }
 });
 const Admin = mongoose.model('Admin', adminSchema);
+
+// --- UTILITY FUNCTIONS ---
+async function sendNotificationToAllAdmins(payload) {
+    try {
+        const subscriptions = await AdminSubscription.find();
+        subscriptions.forEach(({ subscription }) => {
+            webpush.sendNotification(subscription, payload).catch(error => {
+                // If a subscription is expired or invalid, remove it
+                if (error.statusCode === 410 || error.statusCode === 404) {
+                    console.log('Subscription expired or invalid. Removing...');
+                    AdminSubscription.deleteOne({ 'subscription.endpoint': subscription.endpoint }).exec();
+                } else {
+                    console.error('Error sending push notification to admin:', error);
+                }
+            });
+        });
+    } catch (error) {
+        console.error("Failed to fetch admin subscriptions:", error);
+    }
+}
+
 
 // --- INITIAL ADMIN CREATION ---
 async function createInitialAdmin() {
@@ -108,18 +136,40 @@ app.post('/login', async (req, res) => {
     }
 });
 
+// Route for USER to save their subscription
 app.post('/api/save-subscription', async (req, res) => {
     try {
         const { subscription, roomId } = req.body;
         if (roomId && subscription) {
             await ChatRoom.findByIdAndUpdate(roomId, { pushSubscription: subscription }, { upsert: true });
-            res.status(201).json({ message: 'Subscription saved.' });
+            res.status(201).json({ message: 'User subscription saved.' });
         } else {
             res.status(400).json({ message: 'Room ID and subscription are required.' });
         }
     } catch (error) {
-        console.error("Error saving subscription:", error);
+        console.error("Error saving user subscription:", error);
         res.status(500).json({ message: 'Could not save subscription.' });
+    }
+});
+
+// NEW: Route for ADMIN to save their subscription
+app.post('/api/save-admin-subscription', async (req, res) => {
+    try {
+        const { subscription } = req.body;
+        if (subscription) {
+            // Avoid duplicates
+            await AdminSubscription.updateOne(
+                { 'subscription.endpoint': subscription.endpoint },
+                { $set: { subscription } },
+                { upsert: true }
+            );
+            res.status(201).json({ message: 'Admin subscription saved.' });
+        } else {
+            res.status(400).json({ message: 'Subscription is required.' });
+        }
+    } catch (error) {
+        console.error("Error saving admin subscription:", error);
+        res.status(500).json({ message: 'Could not save admin subscription.' });
     }
 });
 
@@ -136,9 +186,22 @@ io.on('connection', (socket) => {
   
   socket.on('user:join', async ({ userId, displayName }) => {
       socket.join(userId);
+      // Check if this is a new room
+      const isNewRoom = !(await ChatRoom.findById(userId));
+
       const roomUpdate = { displayName: displayName };
-      const room = await ChatRoom.findByIdAndUpdate(userId, roomUpdate, { upsert: true, new: true });
+      const room = await ChatRoom.findByIdAndUpdate(userId, roomUpdate, { upsert: true, new: true, setDefaultsOnInsert: true });
       socket.emit('roomDetails', { messages: await Message.find({ roomId: userId }).sort({ timestamp: 1 }), isClosed: room.isClosed });
+
+      // If it's a brand new chat, notify admins
+      if (isNewRoom) {
+          const payload = JSON.stringify({
+              title: '💬 Cuộc trò chuyện mới!',
+              body: `Người dùng "${displayName}" đã bắt đầu một cuộc trò chuyện.`,
+              url: `/admin?roomId=${userId}` // Direct link for admin
+          });
+          sendNotificationToAllAdmins(payload);
+      }
   });
 
   socket.on('admin:viewRoom', async (roomId) => {
@@ -151,7 +214,7 @@ io.on('connection', (socket) => {
       }
   });
 
-  socket.on('sendMessage', async (data, callback) => { // Added callback parameter
+  socket.on('sendMessage', async (data, callback) => {
     const { roomId, senderId, text, isAdmin, displayName } = data;
     try {
         const room = await ChatRoom.findById(roomId);
@@ -162,8 +225,8 @@ io.on('connection', (socket) => {
         }
 
         if (room.isClosed && !isAdmin) {
-            if (callback) callback({ status: 'error', message: 'Cuộc trò chuyện này đã bị khoá. Bạn không thể gửi tin nhắn.' });
-            return socket.emit('chatError', 'Cuộc trò chuyện này đã bị khoá. Bạn không thể gửi tin nhắn.');
+            if (callback) callback({ status: 'error', message: 'Cuộc trò chuyện này đã bị khoá.' });
+            return socket.emit('chatError', 'Cuộc trò chuyện này đã bị khoá.');
         }
         
         const newMessage = new Message({ roomId, senderId, text, isAdmin, displayName });
@@ -175,22 +238,34 @@ io.on('connection', (socket) => {
         io.to(roomId).to('admin_room').emit('newMessage', newMessage);
         io.to('admin_room').emit('chatList', await ChatRoom.find().sort({ timestamp: -1 }));
 
-        // Send push notification to user if admin replies
-        if (isAdmin && room.pushSubscription) {
+        // --- ENHANCED NOTIFICATION LOGIC ---
+        if (isAdmin) {
+            // Admin sent a message, notify the USER
+            if (room.pushSubscription) {
+                const payload = JSON.stringify({
+                    title: `Tin nhắn từ Quản trị viên`,
+                    body: text,
+                    icon: '/icons/icon-192x192.png',
+                    url: `/?roomId=${roomId}` // URL for user to open chat
+                });
+                webpush.sendNotification(room.pushSubscription, payload).catch(err => console.error('Error sending notification to user:', err));
+            }
+        } else {
+            // User sent a message, notify ALL ADMINS
             const payload = JSON.stringify({
-                title: `Phản hồi từ ${displayName}`,
+                title: `Tin nhắn từ ${displayName}`,
                 body: text,
-                icon: '/icon-192x192.png'
+                icon: '/icons/icon-192x192.png',
+                url: `/admin?roomId=${roomId}` // URL for admin to open chat
             });
-            webpush.sendNotification(room.pushSubscription, payload).catch(error => {
-                console.error('Error sending push notification:', error);
-            });
+            sendNotificationToAllAdmins(payload);
         }
-        if (callback) callback({ status: 'success' }); // Acknowledge success
+
+        if (callback) callback({ status: 'success' });
     } catch (error) {
         console.error("Error sending message:", error);
-        if (callback) callback({ status: 'error', message: 'Không thể gửi tin nhắn. Lỗi máy chủ.' });
-        socket.emit('chatError', 'Không thể gửi tin nhắn. Vui lòng thử lại.'); // Also emit general error
+        if (callback) callback({ status: 'error', message: 'Lỗi máy chủ khi gửi tin nhắn.' });
+        socket.emit('chatError', 'Không thể gửi tin nhắn. Vui lòng thử lại.');
     }
   });
 
@@ -199,17 +274,15 @@ io.on('connection', (socket) => {
       io.to(roomId).to('admin_room').emit('chat:locked', { roomId, isLocked });
   });
   
-  // FIX: Handle single message deletion
   socket.on('admin:deleteMessage', async ({ messageId, roomId }) => {
       try {
           const deletedMessage = await Message.findByIdAndDelete(messageId);
           if (deletedMessage) {
-              // Notify both user and admin to remove the message from UI
               io.to(roomId).to('admin_room').emit('messageDeleted', messageId);
               
               const lastMsg = await Message.findOne({ roomId }).sort({ timestamp: -1 });
               await ChatRoom.findByIdAndUpdate(roomId, {
-                  lastMessage: lastMsg ? lastMsg.text : "Tin nhắn đã bị xóa.",
+                  lastMessage: lastMsg ? lastMsg.text : "...",
                   timestamp: lastMsg ? lastMsg.timestamp : new Date()
               });
               io.to('admin_room').emit('chatList', await ChatRoom.find().sort({ timestamp: -1 }));
@@ -219,17 +292,12 @@ io.on('connection', (socket) => {
       }
   });
 
-  // NEW: Handle entire conversation deletion
   socket.on('admin:deleteConversation', async ({ roomId }) => {
       try {
           await Message.deleteMany({ roomId: roomId });
           await ChatRoom.findByIdAndDelete(roomId);
-
-          // Notify admin UI to remove the conversation
           io.to('admin_room').emit('conversationDeleted', roomId);
-          // Notify the user their chat has ended
           io.to(roomId).emit('chatEndedByAdmin');
-
       } catch (error) {
           console.error("Error deleting conversation:", error);
       }
