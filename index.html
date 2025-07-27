@@ -11,13 +11,15 @@
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <!-- PWA: Manifest Link -->
+    <link rel="manifest" href="/manifest.json">
     <style>
         html, body {
             height: 100%;
-            overflow: hidden; 
+            overflow: hidden;
         }
-        body { 
-            font-family: 'Inter', sans-serif; 
+        body {
+            font-family: 'Inter', sans-serif;
         }
         .scrollable-content::-webkit-scrollbar { width: 6px; }
         .scrollable-content::-webkit-scrollbar-track { background: #f1f1f1; }
@@ -42,6 +44,22 @@
         </div>
     </div>
 
+    <!-- PWA Install Prompt -->
+    <div id="install-prompt-container" class="hidden fixed bottom-0 left-0 right-0 bg-[#6B4F4F] text-white p-4 flex items-center justify-between z-50 shadow-lg">
+        <div class="flex items-center">
+            <svg class="w-8 h-8 mr-3" fill="currentColor" viewBox="0 0 20 20" xmlns="http://www.w3.org/2000/svg"><path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clip-rule="evenodd"></path></svg>
+            <div>
+                <p class="font-bold text-sm">Cài đặt ứng dụng Chat</p>
+                <p class="text-xs">Thêm ứng dụng vào màn hình chính để truy cập nhanh.</p>
+            </div>
+        </div>
+        <div class="flex items-center space-x-3">
+            <button id="install-button" class="px-4 py-2 bg-white text-[#6B4F4F] rounded-lg font-bold text-sm hover:bg-gray-100 transition">Cài đặt</button>
+            <button id="close-install-prompt" class="text-white hover:text-gray-200">
+                <svg class="w-5 h-5" fill="currentColor" viewBox="0 0 20 20" xmlns="http://www.w3.org/2000/svg"><path fill-rule="evenodd" d="M4.293 4.293a1 1 0 011.414 0L10 8.586l4.293-4.293a1 1 0 111.414 1.414L11.414 10l4.293 4.293a1 1 0 01-1.414 1.414L10 11.414l-4.293 4.293a1 1 0 01-1.414-1.414L8.586 10 4.293 5.707a1 1 0 010-1.414z" clip-rule="evenodd"></path></svg>
+            </button>
+        </div>
+    </div>
 
     <div id="toast-container" class="fixed top-5 right-5 z-40 w-full max-w-xs space-y-2"></div>
 
@@ -142,7 +160,7 @@
 
     <script>
         // --- CONFIGURATION ---
-        const BACKEND_URL = "https://chat-t1ar.onrender.com"; 
+        const BACKEND_URL = "https://chat-t1ar.onrender.com";
         const VAPID_PUBLIC_KEY = "BLR3ESERJvSd663nWEkEVoQHkfIk6V0akO8_lVv8Tl4ATq3TNJc2wZQQUYajbRUN0rXreHPDA5As_OMOMN8e4Ms";
 
         // --- DOM ELEMENTS ---
@@ -169,21 +187,26 @@
         const loginError = document.getElementById('login-error');
         const logoutButton = document.getElementById('logout-button');
         const userLogoutButton = document.getElementById('user-logout-button');
-        const openChatListButton = document.getElementById('open-chat-list-button'); 
+        const openChatListButton = document.getElementById('open-chat-list-button');
         const lockChatButton = document.getElementById('lock-chat-button');
         const lockChatText = document.getElementById('lock-chat-text');
         const lockIcon = document.getElementById('lock-icon');
         const unlockIcon = document.getElementById('unlock-icon');
         const deleteConversationButton = document.getElementById('delete-conversation-button');
-        const sendMessageButton = document.getElementById('send-message-button'); 
-        const sendIcon = document.getElementById('send-icon'); 
-        const loadingSpinner = document.getElementById('loading-spinner'); 
-
+        const sendMessageButton = document.getElementById('send-message-button');
+        const sendIcon = document.getElementById('send-icon');
+        const loadingSpinner = document.getElementById('loading-spinner');
 
         // Confirmation Modal Elements
         const confirmationModal = document.getElementById('confirmation-modal');
         const confirmCancelButton = document.getElementById('confirm-cancel-button');
         const confirmActionButton = document.getElementById('confirm-action-button');
+
+        // PWA Install Prompt Elements
+        const installPromptContainer = document.getElementById('install-prompt-container');
+        const installButton = document.getElementById('install-button');
+        const closeInstallPrompt = document.getElementById('close-install-prompt');
+
 
         // --- STATE MANAGEMENT ---
         let socket;
@@ -198,6 +221,7 @@
         const newMessageFaviconHref = "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Ccircle cx='50' cy='50' r='50' fill='red'/%3E%3Ctext x='50%' y='50%' dominant-baseline='central' text-anchor='middle' font-size='60' fill='white'%3E1%3C/text%3E%3C/svg%3E";
         const originalFaviconHref = favicon.href;
         let confirmAction = null;
+        let deferredInstallPrompt = null; // To store the beforeinstallprompt event
 
 
         // --- UTILITY FUNCTIONS ---
@@ -221,24 +245,24 @@
                 return `<a href="${url}" target="_blank" rel="noopener noreferrer" class="${linkClass}">${url}</a>`;
             });
         }
-        
+
         function showToastNotification(message, type = 'info') {
             const toastContainer = document.getElementById('toast-container');
             const toastId = 'toast-' + Date.now();
             const toast = document.createElement('div');
             toast.id = toastId;
             toast.className = 'flex items-center gap-3 p-4 bg-white rounded-xl shadow-lg border border-gray-200 transform transition-all duration-500 translate-x-full opacity-0';
-            
-            let iconSvg, bgColor;
+
+            let iconSvg;
             if (type === 'success') {
                 iconSvg = `<svg class="w-6 h-6 text-green-500 flex-shrink-0" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M9 12.75L11.25 15 15 9.75M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>`;
-            } else if (type === 'error') { 
+            } else if (type === 'error') {
                 iconSvg = `<svg class="w-6 h-6 text-red-500 flex-shrink-0" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M12 9v3.75m-9.303 3.376c-.866 1.5.174 3.35 1.9 3.35h13.713c1.726 0 2.766-1.85 1.9-3.35L13.737 3.376c-.863-1.5-3.033-1.5-3.896 0L2.697 16.126zM12 15.75h.007v.008H12v-.008z" /></svg>`;
             }
             else {
                 iconSvg = `<svg class="w-6 h-6 text-[#6B4F4F] flex-shrink-0" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M8.625 12a.375.375 0 11-.75 0 .375.375 0 01.75 0zm0 0H8.25m4.125 0a.375.375 0 11-.75 0 .375.375 0 01.75 0zm0 0H12m4.125 0a.375.375 0 11-.75 0 .375.375 0 01.75 0zm0 0h-.375M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>`;
             }
-            
+
             const contentDiv = document.createElement('div');
             const title = document.createElement('p');
             title.className = 'font-bold text-sm text-[#6B4F4F]';
@@ -263,7 +287,7 @@
                 }
             }, 4000);
         }
-        
+
         function updateFavicon(hasNewMessage) {
             favicon.href = hasNewMessage ? newMessageFaviconHref : originalFaviconHref;
         }
@@ -276,7 +300,7 @@
                 loadingSpinner.classList.remove('hidden');
             } else {
                 // Only re-enable if not locked by admin or chat ended
-                if (!isCurrentChatLocked && !messageInput.disabled) { 
+                if (!isCurrentChatLocked && !messageInput.disabled) {
                     sendMessageButton.disabled = false;
                 }
                 sendIcon.classList.remove('hidden');
@@ -307,7 +331,7 @@
                 const permissionResult = await Notification.requestPermission();
                 if (permissionResult !== 'granted') {
                     console.log('Notification permission not granted.');
-                    return; 
+                    return;
                 }
 
                 console.log('Permission granted. Registering Service Worker...');
@@ -322,7 +346,7 @@
                         applicationServerKey: urlBase64ToUint8Array(VAPID_PUBLIC_KEY)
                     });
                 }
-                
+
                 await fetch(`${BACKEND_URL}/api/save-subscription`, {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
@@ -360,7 +384,7 @@
                 chatListPanel.classList.add('hidden');
             }
         }
-        
+
         function resetChatWindow() {
             messagesDiv.innerHTML = '';
             adminPlaceholder.classList.remove('hidden');
@@ -394,14 +418,14 @@
                 currentUserId = 'user_' + Date.now() + Math.random().toString(36).substring(2, 9);
                 localStorage.setItem('chatUserId', currentUserId);
             }
-            
+
             await askPermissionAndSubscribe();
 
             isAdmin = false;
             initializeSocketConnection();
             showScreen(chatInterface);
         });
-        
+
         adminLoginPromptButton.addEventListener('click', () => showScreen(loginScreen));
         backToWelcomeButton.addEventListener('click', () => showScreen(welcomeScreen));
         const handleLogout = () => {
@@ -410,9 +434,9 @@
         };
         logoutButton.addEventListener('click', handleLogout);
         userLogoutButton.addEventListener('click', handleLogout);
-        
+
         openChatListButton.addEventListener('click', showChatList);
-        
+
         loginForm.addEventListener('submit', async e => {
             e.preventDefault();
             try {
@@ -436,11 +460,11 @@
             // For admin, always show the chat list panel.
             // On mobile, it will be 'flex' due to this line.
             chatListPanel.classList.remove('hidden');
-            chatListPanel.classList.add('flex'); 
+            chatListPanel.classList.add('flex');
 
             // On mobile, the chat window should initially be hidden for admin until a chat is selected.
             // On desktop, Tailwind's 'md:flex' will make it visible alongside the chat list.
-            chatWindowPanel.classList.add('hidden'); 
+            chatWindowPanel.classList.add('hidden');
             if (window.innerWidth >= 768) {
                 chatWindowPanel.classList.remove('hidden');
                 chatWindowPanel.classList.add('flex');
@@ -451,7 +475,7 @@
             messageFooter.classList.add('hidden');
             chatHeaderTitle.textContent = "Bảng điều khiển";
             updateAdminControls(false); // Initially hide buttons
-            openChatListButton.classList.remove('hidden'); 
+            openChatListButton.classList.remove('hidden');
             userLogoutButton.classList.add('hidden');
             socket.emit('admin:join');
         }
@@ -459,7 +483,7 @@
         function setupUserView() {
             showChatWindow(); // Handles mobile/desktop layout
             chatListPanel.classList.add('hidden'); // Ensure chat list is hidden for user view
-            
+
             adminPlaceholder.classList.add('hidden');
             placeholder.classList.remove('hidden');
             messageFooter.classList.remove('hidden');
@@ -470,7 +494,7 @@
             currentRoomId = currentUserId; // Ensure currentRoomId is set for user
             socket.emit('user:join', { userId: currentUserId, displayName: displayName });
         }
-        
+
         // --- SOCKET.IO & CHAT LOGIC ---
         function setupSocketListeners() {
             socket.on('connect', () => {
@@ -483,7 +507,7 @@
             });
 
             socket.on('chatList', renderChatRoomList);
-            socket.on('roomDetails', ({ messages, isClosed }) => { 
+            socket.on('roomDetails', ({ messages, isClosed }) => {
                 isCurrentChatLocked = isClosed;
                 renderMessages(messages);
                 if(!isAdmin) {
@@ -536,7 +560,7 @@
                 }
                 showSendingState(false); // Hide loading state after message is received (for self-sent messages)
             });
-            
+
             socket.on('chat:locked', ({ roomId, isLocked }) => {
                 if(currentRoomId === roomId) {
                    isCurrentChatLocked = isLocked;
@@ -586,7 +610,7 @@
             socket.on('chatEndedByAdmin', () => {
                 if (!isAdmin) {
                     messageInput.disabled = true;
-                    sendMessageButton.disabled = true; 
+                    sendMessageButton.disabled = true;
                     messageInput.placeholder = "Cuộc trò chuyện đã kết thúc.";
                     let endNotice = document.getElementById('end-notice');
                     if (!endNotice) {
@@ -601,8 +625,8 @@
             });
 
             socket.on('chatError', (errorMessage) => {
-                showToastNotification({ title: "Lỗi", text: errorMessage }, 'error'); 
-                showSendingState(false); 
+                showToastNotification({ title: "Lỗi", text: errorMessage }, 'error');
+                showSendingState(false);
             });
         }
         function renderChatRoomList(rooms) {
@@ -661,7 +685,7 @@
             }
             scrollToBottom();
         }
-        messageForm.addEventListener('submit', async e => { 
+        messageForm.addEventListener('submit', async e => {
             e.preventDefault();
             const text = messageInput.value.trim();
             if (!text || !currentRoomId || !socket) {
@@ -669,7 +693,7 @@
                 return;
             }
 
-            showSendingState(true); 
+            showSendingState(true);
 
             socket.emit('sendMessage', {
                 roomId: currentRoomId,
@@ -677,12 +701,12 @@
                 text,
                 isAdmin,
                 displayName: isAdmin ? 'Quản trị viên' : displayName
-            }, (response) => { 
-                showSendingState(false); 
+            }, (response) => {
+                showSendingState(false);
                 if (response && response.status === 'error') {
                     showToastNotification({ title: "Lỗi gửi tin nhắn", text: response.message }, 'error');
                 } else {
-                    messageInput.value = ''; 
+                    messageInput.value = '';
                 }
             });
         });
@@ -695,14 +719,14 @@
             placeholder.classList.add('hidden');
             adminPlaceholder.classList.add('hidden');
             const wrapper = document.createElement('div');
-            wrapper.id = 'message-' + msg._id; 
+            wrapper.id = 'message-' + msg._id;
             const bubble = document.createElement('div');
             const time = document.createElement('div');
             const nameSpan = document.createElement('div');
             const messageContentDiv = document.createElement('div');
-            
+
             wrapper.classList.add('flex', 'flex-col', 'w-full');
-            bubble.classList.add('max-w-[85%]', 'sm:max-w-md', 'px-4', 'py-2', 'rounded-2xl', 'break-words', 'relative', 'group'); 
+            bubble.classList.add('max-w-[85%]', 'sm:max-w-md', 'px-4', 'py-2', 'rounded-2xl', 'break-words', 'relative', 'group');
             time.classList.add('text-xs', 'text-gray-500', 'mt-1');
             nameSpan.classList.add('font-bold', 'text-xs', 'block', 'mb-1');
 
@@ -732,10 +756,10 @@
             if (isAdmin && currentRoomId) {
                 const deleteButton = document.createElement('button');
                 deleteButton.innerHTML = `<svg class="w-4 h-4" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z" clip-rule="evenodd" /></svg>`;
-                
+
                 const positionClass = 'absolute -top-1.5 ' + (msg.isAdmin ? '-left-1.5' : '-right-1.5');
                 deleteButton.className = `${positionClass} bg-red-500 text-white rounded-full p-0.5 opacity-0 group-hover:opacity-100 transition-opacity cursor-pointer focus:outline-none`;
-                
+
                 deleteButton.addEventListener('click', (e) => {
                     e.stopPropagation();
                     socket.emit('admin:deleteMessage', { messageId: msg._id, roomId: currentRoomId });
@@ -758,7 +782,7 @@
             if (!isAdmin || !currentRoomId) return;
             socket.emit('admin:toggleLock', { roomId: currentRoomId, isLocked: !isCurrentChatLocked });
         });
-        
+
         deleteConversationButton.addEventListener('click', () => {
              if (!isAdmin || !currentRoomId) return;
              showConfirmationModal(() => {
@@ -785,7 +809,7 @@
             let lockNotice = document.getElementById('lock-notice');
             if (isCurrentChatLocked) {
                 messageInput.disabled = true;
-                sendMessageButton.disabled = true; 
+                sendMessageButton.disabled = true;
                 messageInput.placeholder = 'Cuộc trò chuyện này đã bị khoá.';
                 if (!lockNotice) {
                     lockNotice = document.createElement('p');
@@ -796,7 +820,7 @@
                 lockNotice.textContent = 'Quản trị viên đã khoá cuộc trò chuyện này.';
             } else {
                 messageInput.disabled = false;
-                sendMessageButton.disabled = false; 
+                sendMessageButton.disabled = false;
                 messageInput.placeholder = 'Nhập câu hỏi của bạn...';
                 if (lockNotice) lockNotice.remove();
             }
@@ -818,7 +842,7 @@
         window.addEventListener('online', () => {
             showToastNotification({ title: "Đã kết nối lại", text: "Kết nối mạng đã được khôi phục." }, 'success');
             // Re-enable input if not locked by admin or chat ended
-            if (!isCurrentChatLocked && !document.getElementById('end-notice')) { 
+            if (!isCurrentChatLocked && !document.getElementById('end-notice')) {
                 messageInput.disabled = false;
                 sendMessageButton.disabled = false;
             }
@@ -843,6 +867,62 @@
             }
         }
         autoInitialize();
+
+        // --- PWA INSTALLATION PROMPT LOGIC ---
+        window.addEventListener('beforeinstallprompt', (e) => {
+            // Prevent the mini-infobar from appearing on mobile
+            e.preventDefault();
+            // Stash the event so it can be triggered later.
+            deferredInstallPrompt = e;
+            // Update UI to notify the user they can install the app
+            installPromptContainer.classList.remove('hidden');
+        });
+
+        installButton.addEventListener('click', async () => {
+            if (deferredInstallPrompt) {
+                // Hide the install prompt
+                installPromptContainer.classList.add('hidden');
+                // Show the install prompt
+                deferredInstallPrompt.prompt();
+                // Wait for the user to respond to the prompt
+                const { outcome } = await deferredInstallPrompt.userChoice;
+                // Optionally, send analytics event with outcome of user choice
+                console.log(`User response to the install prompt: ${outcome}`);
+                // We've used the prompt, and can't use it again, clear it.
+                deferredInstallPrompt = null;
+                if (outcome === 'accepted') {
+                    showToastNotification({ title: "Cài đặt thành công", text: "Ứng dụng đã được thêm vào màn hình chính!" }, 'success');
+                } else {
+                    showToastNotification({ title: "Đã huỷ cài đặt", text: "Bạn đã huỷ việc cài đặt ứng dụng." }, 'info');
+                }
+            }
+        });
+
+        closeInstallPrompt.addEventListener('click', () => {
+            installPromptContainer.classList.add('hidden');
+            deferredInstallPrompt = null; // User explicitly closed, so don't show again until next page load
+        });
+
+        window.addEventListener('appinstalled', () => {
+            // Hide the install prompt once the app is installed
+            installPromptContainer.classList.add('hidden');
+            // Clear the deferred prompt so it can't be used again.
+            deferredInstallPrompt = null;
+            showToastNotification({ title: "Đã cài đặt!", text: "Ứng dụng Chat đã được cài đặt thành công." }, 'success');
+        });
+
+        // Register the Service Worker
+        if ('serviceWorker' in navigator) {
+            window.addEventListener('load', () => {
+                navigator.serviceWorker.register('/service-worker.js')
+                    .then(registration => {
+                        console.log('ServiceWorker registration successful with scope: ', registration.scope);
+                    })
+                    .catch(err => {
+                        console.log('ServiceWorker registration failed: ', err);
+                    });
+            });
+        }
     </script>
 </body>
 </html>
