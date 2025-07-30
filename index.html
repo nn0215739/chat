@@ -112,7 +112,6 @@
                         <p class="text-sm text-gray-500">Danh sách tin nhắn của đồng tu.</p>
                     </div>
                 </div>
-                <!-- CHỈNH SỬA: Thêm khu vực hiển thị admin online -->
                 <div id="online-admins-panel" class="hidden p-4 border-b border-gray-200 flex-shrink-0 bg-gray-50">
                     <h3 class="text-sm font-bold text-[#6B4F4F] mb-2">QUẢN TRỊ VIÊN ONLINE</h3>
                     <ul id="online-admins-list" class="space-y-2">
@@ -217,7 +216,7 @@
         const installPromptContainer = document.getElementById('install-prompt-container');
         const installButton = document.getElementById('install-button');
         const closeInstallPrompt = document.getElementById('close-install-prompt');
-        const onlineAdminsPanel = document.getElementById('online-admins-panel'); // CHỈNH SỬA: Lấy phần tử mới
+        const onlineAdminsPanel = document.getElementById('online-admins-panel');
 
 
         // --- STATE MANAGEMENT ---
@@ -499,12 +498,11 @@
                 loginError.textContent = "Sai email hoặc mật khẩu.";
             }
         });
-
-        // CHỈNH SỬA: Cập nhật setupAdminView
+        
         function setupAdminView() {
             chatListPanel.classList.remove('hidden');
             chatListPanel.classList.add('flex');
-            onlineAdminsPanel.classList.remove('hidden'); // Hiển thị danh sách admin online
+            onlineAdminsPanel.classList.remove('hidden');
             chatWindowPanel.classList.add('hidden');
             if (window.innerWidth >= 768) {
                 chatWindowPanel.classList.remove('hidden');
@@ -518,7 +516,8 @@
             openChatListButton.classList.remove('hidden');
             userLogoutButton.classList.add('hidden');
             
-            // Gửi thông tin admin khi tham gia
+            // SỬA LỖI: Đảm bảo gửi một đối tượng có thuộc tính displayName
+            // đến sự kiện 'admin:join'.
             socket.emit('admin:join', { displayName: adminDisplayName });
 
             askPermissionAndSubscribe(); 
@@ -527,7 +526,7 @@
         function setupUserView() {
             showChatWindow();
             chatListPanel.classList.add('hidden');
-            onlineAdminsPanel.classList.add('hidden'); // Ẩn danh sách admin với người dùng
+            onlineAdminsPanel.classList.add('hidden');
             adminPlaceholder.classList.add('hidden');
             placeholder.classList.remove('hidden');
             messageFooter.classList.remove('hidden');
@@ -539,7 +538,6 @@
             socket.emit('user:join', { userId: currentUserId, displayName: displayName });
         }
 
-        // CHỈNH SỬA: Thêm listener cho danh sách admin online
         function setupSocketListeners() {
             socket.on('connect', () => {
                 const token = localStorage.getItem('adminToken');
@@ -667,10 +665,9 @@
                 showSendingState(false);
             });
 
-            // Listener mới cho danh sách admin
             socket.on('admin:list:update', (admins) => {
                 const adminListUl = document.getElementById('online-admins-list');
-                adminListUl.innerHTML = ''; // Xóa danh sách cũ
+                adminListUl.innerHTML = '';
                 if (admins.length > 0) {
                     admins.forEach(admin => {
                         const li = document.createElement('li');
