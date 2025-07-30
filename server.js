@@ -42,7 +42,7 @@ webpush.setVapidDetails(
 );
 
 // --- STATE MANAGEMENT ---
-const onlineAdmins = new Map(); // CHỈNH SỬA: Theo dõi các quản trị viên đang online { socket.id -> { displayName } }
+const onlineAdmins = new Map(); // Theo dõi các quản trị viên đang online { socket.id -> { displayName } }
 
 // --- DATABASE CONNECTION ---
 mongoose.connect(MONGO_URI)
@@ -146,6 +146,7 @@ app.post('/api/save-subscription', async (req, res) => {
             res.status(400).json({ message: 'Room ID and subscription are required.' });
         }
     } catch (error) {
+        console.error("Error saving user subscription:", error);
         res.status(500).json({ message: 'Could not save subscription.' });
     }
 });
@@ -164,6 +165,7 @@ app.post('/api/save-admin-subscription', async (req, res) => {
             res.status(400).json({ message: 'Subscription is required.' });
         }
     } catch (error) {
+        console.error("Error saving admin subscription:", error);
         res.status(500).json({ message: 'Could not save admin subscription.' });
     }
 });
@@ -173,8 +175,12 @@ app.post('/api/save-admin-subscription', async (req, res) => {
 io.on('connection', (socket) => {
   console.log('A user connected:', socket.id);
 
-  // CHỈNH SỬA: Cập nhật sự kiện admin:join để xử lý danh sách online
-  socket.on('admin:join', async ({ displayName }) => {
+  // SỬA LỖI: Làm cho hàm xử lý admin:join an toàn hơn
+  // Thay vì phá vỡ cấu trúc { displayName } trực tiếp, chúng ta nhận toàn bộ đối tượng `data`
+  // và kiểm tra xem nó có tồn tại hay không trước khi truy cập `displayName`.
+  socket.on('admin:join', async (data) => {
+    const displayName = data && data.displayName ? data.displayName : 'Quản trị viên'; // Cung cấp giá trị mặc định
+
     socket.join('admin_room');
     socket.join(ADMIN_ONLY_ROOM_ID);
 
@@ -330,14 +336,10 @@ io.on('connection', (socket) => {
       }
   });
 
-
-  // CHỈNH SỬA: Xử lý khi admin ngắt kết nối
   socket.on('disconnect', () => {
     console.log('User disconnected:', socket.id);
-    // Kiểm tra nếu người dùng ngắt kết nối là admin
     if (onlineAdmins.has(socket.id)) {
         onlineAdmins.delete(socket.id);
-        // Gửi danh sách admin đã cập nhật cho những người còn lại
         io.to('admin_room').emit('admin:list:update', Array.from(onlineAdmins.values()));
     }
   });
