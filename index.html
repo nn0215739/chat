@@ -66,11 +66,9 @@
         <!-- Welcome Screen -->
         <div id="welcome-screen" class="w-full h-full flex items-center justify-center bg-pattern p-4">
              <div class="text-center p-6 bg-white/80 backdrop-blur-sm rounded-2xl shadow-2xl border border-gray-200 mx-auto max-w-md">
-                <!-- CHỈNH SỬA: Thay thế SVG bằng thẻ img và tăng kích thước -->
                 <img src="logo.png" alt="Logo Pháp Môn Tâm Linh" class="w-20 h-20 mx-auto mb-4 object-contain" onerror="this.style.display='none'; this.nextElementSibling.style.display='block'">
                 <div style="display:none;" class="w-20 h-20 mx-auto mb-4 bg-gray-200 rounded-full flex items-center justify-center text-gray-500">Logo</div>
 
-                <!-- CHỈNH SỬA: Cập nhật tiêu đề và thêm ngắt dòng -->
                 <h1 class="text-3xl font-bold text-[#6B4F4F] leading-tight">
                     PHÁP MÔN TÂM LINH
                     <br>
@@ -113,6 +111,13 @@
                         <h2 class="text-xl font-bold text-[#6B4F4F]">DANH SÁCH TIN NHẮN</h2>
                         <p class="text-sm text-gray-500">Danh sách tin nhắn của đồng tu.</p>
                     </div>
+                </div>
+                <!-- CHỈNH SỬA: Thêm khu vực hiển thị admin online -->
+                <div id="online-admins-panel" class="hidden p-4 border-b border-gray-200 flex-shrink-0 bg-gray-50">
+                    <h3 class="text-sm font-bold text-[#6B4F4F] mb-2">QUẢN TRỊ VIÊN ONLINE</h3>
+                    <ul id="online-admins-list" class="space-y-2">
+                        <!-- Danh sách admin sẽ được JS chèn vào đây -->
+                    </ul>
                 </div>
                 <div id="chat-list-container" class="flex-grow overflow-y-auto scrollable-content"></div>
                 <div class="p-2 border-t border-gray-200 flex-shrink-0"><button id="logout-button" class="w-full text-sm text-gray-600 hover:bg-gray-200 p-2 rounded-md transition">Đăng xuất</button></div>
@@ -169,7 +174,7 @@
         // --- CONFIGURATION ---
         const BACKEND_URL = "https://chat-t1ar.onrender.com";
         const VAPID_PUBLIC_KEY = "BLR3ESERJvSd663nWEkEVoQHkfIk6V0akO8_lVv8Tl4ATq3TNJc2wZQQUYajbRUN0rXreHPDA5As_OMOMN8e4Ms";
-        const ADMIN_ONLY_ROOM_ID = 'admins_only_chat'; // ID phòng chat admin, phải khớp với server
+        const ADMIN_ONLY_ROOM_ID = 'admins_only_chat';
 
         // --- DOM ELEMENTS ---
         const welcomeScreen = document.getElementById('welcome-screen');
@@ -212,6 +217,7 @@
         const installPromptContainer = document.getElementById('install-prompt-container');
         const installButton = document.getElementById('install-button');
         const closeInstallPrompt = document.getElementById('close-install-prompt');
+        const onlineAdminsPanel = document.getElementById('online-admins-panel'); // CHỈNH SỬA: Lấy phần tử mới
 
 
         // --- STATE MANAGEMENT ---
@@ -335,14 +341,12 @@
         
         async function askPermissionAndSubscribe() {
             if (!('serviceWorker' in navigator) || !('PushManager' in window)) {
-                console.warn('Push notifications are not supported.');
                 return;
             }
 
             try {
                 const permissionResult = await Notification.requestPermission();
                 if (permissionResult !== 'granted') {
-                    console.warn('Notification permission was not granted.');
                     if (permissionResult === 'denied') {
                          showToastNotification({
                             title: "Thông Báo Bị Chặn",
@@ -370,8 +374,6 @@
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify(body)
                 });
-
-                console.log('Push subscription successfully sent to server.');
 
             } catch (error) {
                 console.error('Failed to subscribe the user for push notifications: ', error);
@@ -498,9 +500,11 @@
             }
         });
 
+        // CHỈNH SỬA: Cập nhật setupAdminView
         function setupAdminView() {
             chatListPanel.classList.remove('hidden');
             chatListPanel.classList.add('flex');
+            onlineAdminsPanel.classList.remove('hidden'); // Hiển thị danh sách admin online
             chatWindowPanel.classList.add('hidden');
             if (window.innerWidth >= 768) {
                 chatWindowPanel.classList.remove('hidden');
@@ -513,7 +517,9 @@
             updateAdminControls(false);
             openChatListButton.classList.remove('hidden');
             userLogoutButton.classList.add('hidden');
-            socket.emit('admin:join');
+            
+            // Gửi thông tin admin khi tham gia
+            socket.emit('admin:join', { displayName: adminDisplayName });
 
             askPermissionAndSubscribe(); 
         }
@@ -521,6 +527,7 @@
         function setupUserView() {
             showChatWindow();
             chatListPanel.classList.add('hidden');
+            onlineAdminsPanel.classList.add('hidden'); // Ẩn danh sách admin với người dùng
             adminPlaceholder.classList.add('hidden');
             placeholder.classList.remove('hidden');
             messageFooter.classList.remove('hidden');
@@ -532,6 +539,7 @@
             socket.emit('user:join', { userId: currentUserId, displayName: displayName });
         }
 
+        // CHỈNH SỬA: Thêm listener cho danh sách admin online
         function setupSocketListeners() {
             socket.on('connect', () => {
                 const token = localStorage.getItem('adminToken');
@@ -657,6 +665,25 @@
             socket.on('chatError', (errorMessage) => {
                 showToastNotification({ title: "Lỗi", text: errorMessage }, 'error');
                 showSendingState(false);
+            });
+
+            // Listener mới cho danh sách admin
+            socket.on('admin:list:update', (admins) => {
+                const adminListUl = document.getElementById('online-admins-list');
+                adminListUl.innerHTML = ''; // Xóa danh sách cũ
+                if (admins.length > 0) {
+                    admins.forEach(admin => {
+                        const li = document.createElement('li');
+                        li.className = 'text-sm text-gray-700 flex items-center';
+                        li.innerHTML = `
+                            <span class="w-2 h-2 bg-green-500 rounded-full mr-2 animate-pulse"></span>
+                            <span>${admin.displayName}</span>
+                        `;
+                        adminListUl.appendChild(li);
+                    });
+                } else {
+                    adminListUl.innerHTML = '<li class="text-xs text-gray-500 italic">Không có ai đang online.</li>';
+                }
             });
         }
         function renderChatRoomList(rooms) {
@@ -918,7 +945,6 @@
                 installPromptContainer.classList.add('hidden');
                 deferredInstallPrompt.prompt();
                 const { outcome } = await deferredInstallPrompt.userChoice;
-                console.log(`User response to the install prompt: ${outcome}`);
                 deferredInstallPrompt = null;
                 if (outcome === 'accepted') {
                     showToastNotification({ title: "Cài đặt thành công", text: "Ứng dụng đã được thêm vào màn hình chính!" }, 'success');
