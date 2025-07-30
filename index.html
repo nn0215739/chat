@@ -460,7 +460,6 @@
         adminLoginPromptButton.addEventListener('click', () => showScreen(loginScreen));
         backToWelcomeButton.addEventListener('click', () => showScreen(welcomeScreen));
 
-        // --- CHỈNH SỬA: Logic đăng xuất được hợp nhất ---
         const handleLogout = (confirmFirst = false) => {
             const performLogout = () => {
                 localStorage.clear();
@@ -476,15 +475,12 @@
                     onConfirm: performLogout
                 });
             } else {
-                // Admin hoặc người dùng không cần xác nhận sẽ đăng xuất trực tiếp
                 performLogout();
             }
         };
         
-        // Nút đăng xuất của Admin (trong thanh bên)
         logoutButton.addEventListener('click', () => handleLogout(false));
         
-        // Nút đăng xuất của User (trong header)
         userLogoutButton.addEventListener('click', () => handleLogout(true));
 
 
@@ -762,8 +758,16 @@
 
             showSendingState(true);
             
-            // --- CHỈNH SỬA: Gửi email của admin làm tên hiển thị ---
-            const senderDisplayName = isAdmin ? adminEmail : displayName;
+            // --- CHỈNH SỬA: Xác định tên hiển thị dựa trên phòng chat ---
+            let senderDisplayName;
+            if (isAdmin) {
+                // Nếu admin đang ở trong phòng chat riêng của admin, hãy sử dụng email.
+                // Ngược lại (khi chat với người dùng), sử dụng tên hiển thị chung.
+                senderDisplayName = (currentRoomId === ADMIN_ONLY_ROOM_ID) ? adminEmail : adminDisplayName;
+            } else {
+                // Đối với người dùng thông thường
+                senderDisplayName = displayName;
+            }
 
             socket.emit('sendMessage', {
                 roomId: currentRoomId,
@@ -806,7 +810,7 @@
                 wrapper.classList.add('items-end');
                 bubble.classList.add('bg-[#6B4F4F]', 'text-white', 'shadow-md');
                 time.classList.add('text-right');
-                // --- CHỈNH SỬA: Hiển thị email của admin (msg.displayName) ---
+                // Tên hiển thị (displayName) được gửi từ server sẽ được dùng ở đây
                 nameSpan.innerHTML = `<svg class="w-4 h-4 inline-block mr-1 text-yellow-300" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clip-rule="evenodd" /></svg> ${msg.displayName || 'Quản trị viên'}`;
                 nameSpan.classList.add('text-yellow-200');
             } else {
