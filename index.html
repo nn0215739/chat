@@ -460,22 +460,33 @@
         adminLoginPromptButton.addEventListener('click', () => showScreen(loginScreen));
         backToWelcomeButton.addEventListener('click', () => showScreen(welcomeScreen));
 
-        const handleLogout = () => {
-            localStorage.clear();
-            window.location.reload();
+        // --- CHỈNH SỬA: Logic đăng xuất được hợp nhất ---
+        const handleLogout = (confirmFirst = false) => {
+            const performLogout = () => {
+                localStorage.clear();
+                window.location.reload();
+            };
+
+            if (confirmFirst && !isAdmin) {
+                showCustomConfirmationModal({
+                    title: "Xác nhận Đăng Xuất",
+                    message: "Sau khi Đăng Xuất, Sư Huynh sẽ không còn nhận được tin nhắn của Quản Trị Viên nữa ạ!",
+                    confirmText: "Đăng Xuất",
+                    confirmClass: 'bg-orange-500',
+                    onConfirm: performLogout
+                });
+            } else {
+                // Admin hoặc người dùng không cần xác nhận sẽ đăng xuất trực tiếp
+                performLogout();
+            }
         };
+        
+        // Nút đăng xuất của Admin (trong thanh bên)
+        logoutButton.addEventListener('click', () => handleLogout(false));
+        
+        // Nút đăng xuất của User (trong header)
+        userLogoutButton.addEventListener('click', () => handleLogout(true));
 
-        logoutButton.addEventListener('click', handleLogout);
-
-        userLogoutButton.addEventListener('click', () => {
-             showCustomConfirmationModal({
-                title: "Xác nhận Đăng Xuất",
-                message: "Sau khi Đăng Xuất, Sư Huynh sẽ không còn nhận được tin nhắn của Quản Trị Viên nữa ạ!",
-                confirmText: "Đăng Xuất",
-                confirmClass: 'bg-orange-500',
-                onConfirm: handleLogout
-            });
-        });
 
         openChatListButton.addEventListener('click', showChatList);
 
@@ -666,7 +677,6 @@
                 showSendingState(false);
             });
 
-            // CHỈNH SỬA: Cập nhật giao diện để chỉ hiển thị email
             socket.on('admin:list:update', (admins) => {
                 const adminListUl = document.getElementById('online-admins-list');
                 adminListUl.innerHTML = '';
@@ -752,7 +762,8 @@
 
             showSendingState(true);
             
-            const senderDisplayName = isAdmin ? adminDisplayName : displayName;
+            // --- CHỈNH SỬA: Gửi email của admin làm tên hiển thị ---
+            const senderDisplayName = isAdmin ? adminEmail : displayName;
 
             socket.emit('sendMessage', {
                 roomId: currentRoomId,
@@ -795,6 +806,7 @@
                 wrapper.classList.add('items-end');
                 bubble.classList.add('bg-[#6B4F4F]', 'text-white', 'shadow-md');
                 time.classList.add('text-right');
+                // --- CHỈNH SỬA: Hiển thị email của admin (msg.displayName) ---
                 nameSpan.innerHTML = `<svg class="w-4 h-4 inline-block mr-1 text-yellow-300" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clip-rule="evenodd" /></svg> ${msg.displayName || 'Quản trị viên'}`;
                 nameSpan.classList.add('text-yellow-200');
             } else {
