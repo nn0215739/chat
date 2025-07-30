@@ -42,7 +42,7 @@ webpush.setVapidDetails(
 );
 
 // --- STATE MANAGEMENT ---
-const onlineAdmins = new Map(); // Theo dõi các quản trị viên đang online { socket.id -> { displayName } }
+const onlineAdmins = new Map(); // Theo dõi các quản trị viên đang online { socket.id -> { displayName, email } }
 
 // --- DATABASE CONNECTION ---
 mongoose.connect(MONGO_URI)
@@ -129,8 +129,9 @@ app.post('/login', async (req, res) => {
         if (!admin || !await bcrypt.compare(password, admin.password)) {
             return res.status(401).json({ message: "Sai email hoặc mật khẩu." });
         }
-        const token = jwt.sign({ id: admin._id, displayName: admin.displayName }, JWT_SECRET, { expiresIn: '24h' });
-        res.json({ token, displayName: admin.displayName });
+        // CHỈNH SỬA: Thêm email vào token và response
+        const token = jwt.sign({ id: admin._id, displayName: admin.displayName, email: admin.email }, JWT_SECRET, { expiresIn: '24h' });
+        res.json({ token, displayName: admin.displayName, email: admin.email });
     } catch (error) {
         res.status(500).json({ message: "Lỗi máy chủ" });
     }
@@ -175,17 +176,16 @@ app.post('/api/save-admin-subscription', async (req, res) => {
 io.on('connection', (socket) => {
   console.log('A user connected:', socket.id);
 
-  // SỬA LỖI: Làm cho hàm xử lý admin:join an toàn hơn
-  // Thay vì phá vỡ cấu trúc { displayName } trực tiếp, chúng ta nhận toàn bộ đối tượng `data`
-  // và kiểm tra xem nó có tồn tại hay không trước khi truy cập `displayName`.
+  // CHỈNH SỬA: Nhận cả displayName và email từ client
   socket.on('admin:join', async (data) => {
-    const displayName = data && data.displayName ? data.displayName : 'Quản trị viên'; // Cung cấp giá trị mặc định
+    const displayName = data && data.displayName ? data.displayName : 'Quản trị viên';
+    const email = data && data.email ? data.email : 'N/A';
 
     socket.join('admin_room');
     socket.join(ADMIN_ONLY_ROOM_ID);
 
-    // Thêm admin vào danh sách online
-    onlineAdmins.set(socket.id, { displayName });
+    // Thêm admin vào danh sách online với cả displayName và email
+    onlineAdmins.set(socket.id, { displayName, email });
 
     // Gửi danh sách phòng chat
     const userRooms = await ChatRoom.find().sort({ timestamp: -1 });
