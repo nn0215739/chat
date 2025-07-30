@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>PHÁP MÔN TÂM LINH - KẾT NỐI CỘNG ĐỒNG</title>
+    <title>PHÁP MÔN TÂM LINH - CHIA SẺ & KẾT NỐI</title>
     <link id="favicon" rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Ctext y='.9em' font-size='90'%3E💬%3C/text%3E%3C/svg%3E">
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/tone/14.7.77/Tone.js"></script>
@@ -72,7 +72,7 @@
                 <h1 class="text-3xl font-bold text-[#6B4F4F] leading-tight">
                     PHÁP MÔN TÂM LINH
                     <br>
-                    <span class="text-2xl">KẾT NỐI CỘNG ĐỒNG</span>
+                    <span class="text-2xl">CHIA SẺ & KẾT NỐI</span>
                 </h1>
                 <p class="text-gray-500 mt-2 text-sm">| https://hotro.pmtl.site || https://chat.pmtl.site |</p>
                 <div class="mt-6 w-full max-w-xs mx-auto">
@@ -516,8 +516,6 @@
             openChatListButton.classList.remove('hidden');
             userLogoutButton.classList.add('hidden');
             
-            // SỬA LỖI: Đảm bảo gửi một đối tượng có thuộc tính displayName
-            // đến sự kiện 'admin:join'.
             socket.emit('admin:join', { displayName: adminDisplayName });
 
             askPermissionAndSubscribe(); 
