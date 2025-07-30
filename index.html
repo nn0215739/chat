@@ -322,56 +322,58 @@
             }
             return outputArray;
         }
+        
+        // --- CHỈNH SỬA: CẬP NHẬT HÀM askPermissionAndSubscribe ---
+        async function askPermissionAndSubscribe() {
+            if (!('serviceWorker' in navigator) || !('PushManager' in window)) {
+                console.warn('Push notifications are not supported.');
+                return;
+            }
 
-        async function subscribeUserToPush() {
             try {
+                const permissionResult = await Notification.requestPermission();
+                if (permissionResult !== 'granted') {
+                    console.warn('Notification permission was not granted.');
+                    if (permissionResult === 'denied') {
+                         showToastNotification({
+                            title: "Thông Báo Bị Chặn",
+                            text: "Bạn đã chặn thông báo. Vui lòng bật lại trong cài đặt trang web của trình duyệt."
+                        }, 'error');
+                    }
+                    return;
+                }
+
                 const swRegistration = await navigator.serviceWorker.ready;
                 let subscription = await swRegistration.pushManager.getSubscription();
+
                 if (subscription === null) {
                     subscription = await swRegistration.pushManager.subscribe({
                         userVisibleOnly: true,
                         applicationServerKey: urlBase64ToUint8Array(VAPID_PUBLIC_KEY)
                     });
                 }
-                await fetch(`${BACKEND_URL}/api/save-subscription`, {
+                
+                // Xác định endpoint để gửi subscription dựa trên vai trò
+                const endpoint = isAdmin ? '/api/save-admin-subscription' : '/api/save-subscription';
+                const body = isAdmin ? { subscription } : { subscription, roomId: currentUserId };
+
+                await fetch(`${BACKEND_URL}${endpoint}`, {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ subscription: subscription, roomId: currentUserId })
+                    body: JSON.stringify(body)
                 });
+
+                console.log('Push subscription successfully sent to server.');
+
             } catch (error) {
-                console.error('Failed to subscribe the user to push notifications: ', error);
+                console.error('Failed to subscribe the user for push notifications: ', error);
             }
         }
 
-        async function askPermissionAndSubscribe() {
-            if (!('serviceWorker' in navigator) || !('PushManager' in window)) {
-                return;
-            }
-
-            const permissionStatus = Notification.permission;
-            if (permissionStatus === 'granted') {
-                await subscribeUserToPush();
-            } else if (permissionStatus === 'denied') {
-                showToastNotification({
-                    title: "Thông Báo Bị Chặn",
-                    text: "Bạn đã chặn thông báo. Vui lòng bật lại trong cài đặt trang web của trình duyệt."
-                }, 'error');
-            } else {
-                const permissionResult = await Notification.requestPermission();
-                if (permissionResult === 'granted') {
-                    await subscribeUserToPush();
-                }
-            }
-        }
 
         // --- NEW FUNCTION TO PLAY NOTIFICATION SOUND ---
         function playNewMessageSound() {
-            // This function is responsible for playing the "ting" sound.
-            // We use Tone.js to create a simple synthesized note.
-            // It will only be called when the chat window is active and the message
-            // is for the currently open conversation.
             try {
-                // Ensure the audio context is running, which is required by modern browsers.
                 if (Tone.context.state === 'running') {
                     notificationSynth.triggerAttackRelease("C5", "8n");
                 }
@@ -488,6 +490,7 @@
             }
         });
 
+        // --- CHỈNH SỬA: THÊM LỜI GỌI HÀM VÀO setupAdminView ---
         function setupAdminView() {
             chatListPanel.classList.remove('hidden');
             chatListPanel.classList.add('flex');
@@ -504,6 +507,9 @@
             openChatListButton.classList.remove('hidden');
             userLogoutButton.classList.add('hidden');
             socket.emit('admin:join');
+
+            // Kích hoạt đăng ký push cho admin
+            askPermissionAndSubscribe(); 
         }
 
         function setupUserView() {
@@ -542,28 +548,22 @@
                 }
             });
             
-            // --- UPDATED MESSAGE HANDLING LOGIC ---
             socket.on('newMessage', (message) => {
                 const isScrolledToBottom = messagesContainer.scrollHeight - messagesContainer.clientHeight <= messagesContainer.scrollTop + 5;
                 
-                // Always display the message if it belongs to the current room
                 if (message.roomId === currentRoomId) {
                     appendMessage(message);
                     if (isScrolledToBottom) scrollToBottom();
                 }
                 
-                // Update the UI if the message was sent by the current user/admin
                 if (message.senderId === (isAdmin ? 'admin' : currentUserId)) {
                     showSendingState(false);
                 }
                 
-                // Determine if a notification should be shown (i.e., the message is from the other person)
                 const shouldNotify = (!isAdmin && message.isAdmin) || (isAdmin && !message.isAdmin);
 
                 if (shouldNotify) {
                     if (document.hidden) {
-                        // --- BEHAVIOR WHEN APP/TAB IS HIDDEN ---
-                        // A full push notification is sent, title is changed, and favicon is updated.
                         const notificationTitle = message.isAdmin ? `Tin nhắn từ Quản trị viên` : `Tin nhắn mới từ ${message.displayName}`;
                         if ('serviceWorker' in navigator && navigator.serviceWorker.controller) {
                             navigator.serviceWorker.controller.postMessage({
@@ -579,10 +579,6 @@
                         document.title = `(Mới) ${notificationTitle}`;
                         updateFavicon(true);
                     } else if (message.roomId === currentRoomId) {
-                        // --- BEHAVIOR WHEN APP/TAB IS VISIBLE ---
-                        // This is the case you are asking about.
-                        // If the page is visible and the message is for the currently open chat,
-                        // we only play a sound and do nothing else.
                         playNewMessageSound();
                     }
                 }
