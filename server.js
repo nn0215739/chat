@@ -1,350 +1,988 @@
-const express = require('express');
-const http = require('http');
-const { Server } = require("socket.io");
-const mongoose = require('mongoose');
-const cors = require('cors');
-const bcrypt = require('bcryptjs');
-const jwt = require('jsonwebtoken');
-const webpush = require('web-push');
-require('dotenv').config();
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>PHÁP MÔN TÂM LINH - KẾT NỐI CỘNG ĐỒNG</title>
+    <link id="favicon" rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Ctext y='.9em' font-size='90'%3E💬%3C/text%3E%3C/svg%3E">
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/tone/14.7.77/Tone.js"></script>
+    <script src="https://cdn.socket.io/4.6.1/socket.io.min.js"></script>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <link rel="manifest" href="/manifest.json">
+    <style>
+        html, body {
+            height: 100%;
+            overflow: hidden;
+        }
+        body {
+            font-family: 'Inter', sans-serif;
+        }
+        .scrollable-content::-webkit-scrollbar { width: 6px; }
+        .scrollable-content::-webkit-scrollbar-track { background: #f1f1f1; }
+        .scrollable-content::-webkit-scrollbar-thumb { background: #c19a6b; border-radius: 6px; }
+        .scrollable-content::-webkit-scrollbar-thumb:hover { background: #a9885a; }
+        .bg-pattern {
+            background-image: url("data:image/svg+xml,%3Csvg width='60' height='60' viewBox='0 0 60 60' xmlns='http://www.w3.org/2000/svg'%3E%3Cg fill='none' fill-rule='evenodd'%3E%3Cg fill='%23c19a6b' fill-opacity='0.1'%3E%3Cpath d='M36 34v-4h-2v4h-4v2h4v4h2v-4h4v-2h-4zm0-30V0h-2v4h-4v2h4v4h2V6h4V4h-4zM6 34v-4H4v4H0v2h4v4h2v-4h4v-2H6zM6 4V0H4v4H0v2h4v4h2V6h4V4H6z'/%3E%3C/g%3E%3C/g%3E%3C/svg%3E");
+        }
+    </style>
+</head>
+<body class="bg-[#fffbbe] antialiased">
 
-const app = express();
-app.use(cors());
-app.use(express.json());
+    <!-- Confirmation Modal -->
+    <div id="confirmation-modal" class="hidden fixed inset-0 bg-gray-900 bg-opacity-60 flex items-center justify-center z-50">
+        <div class="bg-white rounded-lg shadow-xl p-6 w-full max-w-sm mx-4">
+            <h3 id="confirmation-title" class="text-lg font-bold text-gray-800">Xác nhận hành động</h3>
+            <p id="confirmation-message" class="text-gray-600 mt-2">Bạn có chắc chắn muốn xóa toàn bộ cuộc hội thoại này không? Hành động này không thể hoàn tác.</p>
+            <div class="mt-6 flex justify-end space-x-4">
+                <button id="confirm-cancel-button" class="px-4 py-2 bg-gray-200 text-gray-800 rounded-lg hover:bg-gray-300">Hủy bỏ</button>
+                <button id="confirm-action-button" class="px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700">Xác nhận Xóa</button>
+            </div>
+        </div>
+    </div>
 
-// Serve the service worker file from the root directory
-app.use(express.static(__dirname));
+    <!-- PWA Install Prompt -->
+    <div id="install-prompt-container" class="hidden fixed bottom-0 left-0 right-0 bg-[#6B4F4F] text-white p-4 flex items-center justify-between z-50 shadow-lg">
+        <div class="flex items-center">
+            <svg class="w-8 h-8 mr-3" fill="currentColor" viewBox="0 0 20 20" xmlns="http://www.w3.org/2000/svg"><path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clip-rule="evenodd"></path></svg>
+            <div>
+                <p class="font-bold text-sm">Cài đặt ứng dụng Chat</p>
+                <p class="text-xs">Thêm ứng dụng vào màn hình chính để truy cập nhanh.</p>
+            </div>
+        </div>
+        <div class="flex items-center space-x-3">
+            <button id="install-button" class="px-4 py-2 bg-white text-[#6B4F4F] rounded-lg font-bold text-sm hover:bg-gray-100 transition">Cài đặt</button>
+            <button id="close-install-prompt" class="text-white hover:text-gray-200">
+                <svg class="w-5 h-5" fill="currentColor" viewBox="0 0 20 20" xmlns="http://www.w3.org/2000/svg"><path fill-rule="evenodd" d="M4.293 4.293a1 1 0 011.414 0L10 8.586l4.293-4.293a1 1 0 111.414 1.414L11.414 10l4.293 4.293a1 1 0 01-1.414 1.414L10 11.414l-4.293 4.293a1 1 0 01-1.414-1.414L8.586 10 4.293 5.707a1 1 0 010-1.414z" clip-rule="evenodd"></path></svg>
+            </button>
+        </div>
+    </div>
 
-const server = http.createServer(app);
-const io = new Server(server, {
-  cors: {
-    origin: "*", 
-    methods: ["GET", "POST"]
-  }
-});
+    <div id="toast-container" class="fixed top-5 right-5 z-40 w-full max-w-xs space-y-2"></div>
 
-// --- CONFIGURATION ---
-const PORT = process.env.PORT || 3000;
-const MONGO_URI = process.env.MONGO_URI || "mongodb://localhost:27017/chatApp";
-const JWT_SECRET = process.env.JWT_SECRET || "your-very-secret-key";
-const INITIAL_ADMIN_EMAIL = "admin@example.com";
-const ADMIN_DEFAULT_PASSWORD = "password123";
-const ADMIN_ONLY_ROOM_ID = 'admins_only_chat';
+    <div id="app" class="w-full h-full flex flex-col">
+        <!-- Welcome Screen -->
+        <div id="welcome-screen" class="w-full h-full flex items-center justify-center bg-pattern p-4">
+             <div class="text-center p-6 bg-white/80 backdrop-blur-sm rounded-2xl shadow-2xl border border-gray-200 mx-auto max-w-md">
+                <img src="logo.png" alt="Logo Pháp Môn Tâm Linh" class="w-20 h-20 mx-auto mb-4 object-contain" onerror="this.style.display='none'; this.nextElementSibling.style.display='block'">
+                <div style="display:none;" class="w-20 h-20 mx-auto mb-4 bg-gray-200 rounded-full flex items-center justify-center text-gray-500">Logo</div>
 
-// VAPID keys should be stored in environment variables for security
-const VAPID_PUBLIC_KEY = process.env.VAPID_PUBLIC_KEY || "BLR3ESERJvSd663nWEkEVoQHkfIk6V0akO8_lVv8Tl4ATq3TNJc2wZQQUYajbRUN0rXreHPDA5As_OMOMN8e4Ms";
-const VAPID_PRIVATE_KEY = process.env.VAPID_PRIVATE_KEY || "qnW902sNFeZ2nrLZsoPAzipwIHWVpejp75hc_SgqyaY";
+                <h1 class="text-3xl font-bold text-[#6B4F4F] leading-tight">
+                    PHÁP MÔN TÂM LINH
+                    <br>
+                    <span class="text-2xl">KẾT NỐI CỘNG ĐỒNG</span>
+                </h1>
+                <p class="text-gray-500 mt-2 text-sm">| https://hotro.pmtl.site || https://chat.pmtl.site |.</p>
+                <div class="mt-6 w-full max-w-xs mx-auto">
+                    <label for="display-name-input" class="block text-sm font-medium text-gray-700 mb-1 text-left">Tên hiển thị</label>
+                    <input id="display-name-input" type="text" placeholder="Ví dụ: Sư Huynh An Lạc" class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-[#c19a6b] focus:border-[#c19a6b] transition">
+                </div>
+                <div class="mt-4 space-y-3 flex flex-col items-center">
+                    <button id="start-chat-button" class="w-full max-w-xs bg-[#c19a6b] text-white font-bold py-3 px-6 rounded-lg hover:bg-[#a9885a] transition-transform transform hover:scale-105 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-[#c19a6b]">Bắt đầu trò chuyện</button>
+                </div>
+                <div class="mt-8 text-center">
+                    <button id="admin-login-prompt-button" class="text-xs text-gray-500 hover:text-[#c19a6b] hover:underline">Đăng nhập với tư cách Quản trị viên</button>
+                </div>
+             </div>
+        </div>
 
-webpush.setVapidDetails(
-    'mailto:admin@example.com',
-    VAPID_PUBLIC_KEY,
-    VAPID_PRIVATE_KEY
-);
+        <!-- Login Screen -->
+        <div id="login-screen" class="hidden w-full h-full items-center justify-center bg-pattern p-4">
+             <div class="w-full max-w-sm p-8 bg-white/80 backdrop-blur-sm rounded-2xl shadow-2xl border border-gray-200">
+                <div class="text-center mb-8"><h1 class="text-3xl font-bold text-[#6B4F4F] mt-4">Đăng Nhập Quản Trị</h1><p class="text-gray-500 mt-2">Chỉ dành cho quản trị viên.</p></div>
+                <form id="login-form">
+                    <div class="mb-4"><label for="email" class="block text-sm font-medium text-gray-700 mb-1">Email</label><input type="email" id="email" name="email" required class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-[#c19a6b] focus:border-[#c19a6b] transition" placeholder="admin@example.com"></div>
+                    <div class="mb-6"><label for="password" class="block text-sm font-medium text-gray-700 mb-1">Mật khẩu</label><input type="password" id="password" name="password" required class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-[#c19a6b] focus:border-[#c19a6b] transition" placeholder="••••••••"></div>
+                    <button type="submit" class="w-full bg-[#c19a6b] text-white font-bold py-3 rounded-lg hover:bg-[#a9885a] transition-transform transform hover:scale-105">Đăng Nhập</button>
+                    <p id="login-error" class="text-red-500 text-sm mt-4 text-center"></p>
+                    <button type="button" id="back-to-welcome-button" class="w-full mt-4 text-sm text-gray-600 hover:text-[#c19a6b]">Quay lại</button>
+                </form>
+            </div>
+        </div>
 
-// --- STATE MANAGEMENT ---
-const onlineAdmins = new Map(); // Theo dõi các quản trị viên đang online { socket.id -> { displayName, email } }
+        <!-- Chat Interface -->
+        <div id="chat-interface" class="hidden h-full w-full flex-grow flex md:flex-row">
+            <!-- Admin: Chat List Panel -->
+            <div id="chat-list-panel" class="hidden md:flex flex-col w-full md:w-1/3 lg:w-1/4 bg-white border-r border-gray-200">
+                <div class="p-4 border-b border-gray-200 flex items-center justify-between flex-shrink-0">
+                    <div>
+                        <h2 class="text-xl font-bold text-[#6B4F4F]">DANH SÁCH TIN NHẮN</h2>
+                        <p class="text-sm text-gray-500">Danh sách tin nhắn của đồng tu.</p>
+                    </div>
+                </div>
+                <div id="online-admins-panel" class="hidden p-4 border-b border-gray-200 flex-shrink-0 bg-gray-50">
+                    <h3 class="text-sm font-bold text-[#6B4F4F] mb-2">QUẢN TRỊ VIÊN ONLINE</h3>
+                    <ul id="online-admins-list" class="space-y-2">
+                        <!-- Danh sách admin sẽ được JS chèn vào đây -->
+                    </ul>
+                </div>
+                <div id="chat-list-container" class="flex-grow overflow-y-auto scrollable-content"></div>
+                <div class="p-2 border-t border-gray-200 flex-shrink-0"><button id="logout-button" class="w-full text-sm text-gray-600 hover:bg-gray-200 p-2 rounded-md transition">Đăng xuất</button></div>
+            </div>
 
-// --- DATABASE CONNECTION ---
-mongoose.connect(MONGO_URI)
-  .then(() => console.log("MongoDB connected successfully."))
-  .catch(err => console.error("MongoDB connection error:", err));
+            <!-- Chat Window (For both User and Admin) -->
+            <div id="chat-window-panel" class="hidden md:flex flex-col w-full h-full bg-[#F5F1E9]">
+                <header class="flex-shrink-0 bg-white/80 backdrop-blur-sm shadow-md p-3 flex items-center justify-between border-b border-gray-200">
+                    <div class="flex items-center flex-1 min-w-0">
+                        <button id="open-chat-list-button" class="md:hidden mr-2 text-gray-600 hover:text-[#c19a6b]">
+                            <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 12h16M4 18h16"></path></svg>
+                        </button>
+                        <svg class="w-8 h-8 text-[#D4AF37] hidden sm:block" viewBox="0 0 28 28" fill="currentColor"><path d="M14 0C6.268 0 0 6.268 0 14s6.268 14 14 14 14-6.268 14-14S21.732 0 14 0zm0 26C7.373 26 2 20.627 2 14S7.373 2 14 2s12 5.373 12 12-5.373 12-12 12z"/><path d="M14 4c-5.523 0-10 4.477-10 10s4.477 10 10 10 10-4.477 10-10S19.523 4 14 4zm0 18c-4.418 0-8-3.582-8-8s3.582-8 8-8 8 3.582 8 8-3.582 8-8 8z"/><path d="M14 7c-3.866 0-7 3.134-7 7s3.134 7 7 7 7-3.134 7-7-3.134-7-7-7zm0 12c-2.761 0-5-2.239-5-5s2.239-5 5-5 5 2.239 5 5-2.239 5-5 5z"/></svg>
+                        <h1 id="chat-header-title" class="text-lg font-bold text-[#6B4F4F] ml-2 truncate">Hỗ Trợ Trực Tuyến</h1>
+                    </div>
+                    <div class="flex items-center space-x-2 flex-shrink-0 ml-2">
+                         <button id="delete-conversation-button" class="hidden items-center space-x-2 bg-red-600 text-white font-bold py-2 px-3 rounded-lg hover:bg-red-700 transition" title="Xóa toàn bộ hội thoại">
+                            <svg class="w-4 h-4" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor">
+                                <path fill-rule="evenodd" d="M9 2a1 1 0 00-.894.553L7.382 4H4a1 1 0 000 2v10a2 2 0 002 2h8a2 2 0 002-2V6a1 1 0 100-2h-3.382l-.724-1.447A1 1 0 0011 2H9zM7 8a1 1 0 012 0v6a1 1 0 11-2 0V8zm4 0a1 1 0 012 0v6a1 1 0 11-2 0V8z" clip-rule="evenodd" />
+                            </svg>
+                            <span class="hidden sm:inline">Xóa Hội thoại</span>
+                        </button>
+                         <button id="lock-chat-button" class="hidden items-center space-x-2 bg-yellow-500 text-white font-bold py-2 px-3 rounded-lg hover:bg-yellow-600 transition">
+                            <svg id="lock-icon" class="w-4 h-4" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M10 1a4.5 4.5 0 00-4.5 4.5V9H5a2 2 0 00-2 2v6a2 2 0 002 2h10a2 2 0 002-2v-6a2 2 0 00-2-2h-.5V5.5A4.5 4.5 0 0010 1zm3 8V5.5a3 3 0 10-6 0V9h6z" clip-rule="evenodd" /></svg>
+                             <svg id="unlock-icon" class="w-4 h-4 hidden" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor"><path d="M10 2a5 5 0 00-5 5v1h-1a2 2 0 00-2 2v6a2 2 0 002 2h10a2 2 0 002-2v-6a2 2 0 00-2-2h-1V7a5 5 0 00-5-5zm2.5 7.5V7a2.5 2.5 0 00-5 0v.5h5z" fill-rule="evenodd" clip-rule="evenodd" /></svg>
+                            <span id="lock-chat-text" class="hidden sm:inline">Khoá</span>
+                        </button>
+                         <button id="user-logout-button" class="hidden md:block text-sm text-gray-600 hover:text-[#c19a6b] transition">Đăng Xuất</button>
+                    </div>
+                </header>
+                <main id="messages-container" class="flex-grow p-4 md:p-6 overflow-y-auto scrollable-content">
+                    <div id="messages" class="space-y-4">
+                        <div id="placeholder" class="text-center text-gray-500 mt-10">
+                            <p>Chào mừng bạn!</p>
+                            <p class="text-sm">Hãy đặt câu hỏi của bạn ở khung chat bên dưới.</p>
+                            <p id="admin-placeholder" class="hidden mt-4 text-sm">Vui lòng chọn một cuộc trò chuyện từ danh sách bên trái.</p>
+                        </div>
+                    </div>
+                </main>
+                <footer id="message-footer" class="flex-shrink-0 p-4 bg-white/80 backdrop-blur-sm border-t border-gray-200">
+                    <form id="message-form" class="flex items-center space-x-4">
+                        <input id="message-input" type="text" placeholder="Nhập câu hỏi của bạn..." autocomplete="off" class="w-full px-4 py-3 border border-gray-300 rounded-full focus:ring-[#c19a6b] focus:border-[#c19a6b] transition disabled:bg-gray-200">
+                        <button type="submit" id="send-message-button" class="bg-[#c19a6b] text-white rounded-full p-3 hover:bg-[#a9885a] transition-transform transform hover:scale-110 disabled:bg-gray-400 disabled:transform-none disabled:cursor-not-allowed flex items-center justify-center">
+                            <svg id="send-icon" class="w-6 h-6" fill="currentColor" viewBox="0 0 20 20"><path d="M10.894 2.553a1 1 0 00-1.788 0l-7 14a1 1 0 001.169 1.409l5-1.429A1 1 0 009 15.571V11a1 1 0 112 0v4.571a1 1 0 00.725.962l5 1.428a1 1 0 001.17-1.408l-7-14z"></path></svg>
+                            <div id="loading-spinner" class="hidden animate-spin rounded-full h-5 w-5 border-b-2 border-white"></div>
+                        </button>
+                    </form>
+                </footer>
+            </div>
+        </div>
+    </div>
 
-// --- DATABASE SCHEMAS ---
-const messageSchema = new mongoose.Schema({
-  roomId: { type: String, required: true, index: true },
-  senderId: { type: String, required: true },
-  displayName: {type: String, default: 'Sư huynh'},
-  isAdmin: { type: Boolean, default: false },
-  text: { type: String, required: true },
-  timestamp: { type: Date, default: Date.now }
-});
-const Message = mongoose.model('Message', messageSchema);
+    <script>
+        // --- CONFIGURATION ---
+        const BACKEND_URL = "https://chat-t1ar.onrender.com";
+        const VAPID_PUBLIC_KEY = "BLR3ESERJvSd663nWEkEVoQHkfIk6V0akO8_lVv8Tl4ATq3TNJc2wZQQUYajbRUN0rXreHPDA5As_OMOMN8e4Ms";
+        const ADMIN_ONLY_ROOM_ID = 'admins_only_chat';
 
-const chatRoomSchema = new mongoose.Schema({
-  _id: { type: String }, // Room ID (same as userId)
-  displayName: { type: String, default: 'Sư huynh Vô Danh' },
-  lastMessage: { type: String },
-  timestamp: { type: Date },
-  hasUnreadAdmin: { type: Boolean, default: false },
-  isClosed: { type: Boolean, default: false }, 
-  pushSubscription: { type: Object }
-});
-const ChatRoom = mongoose.model('ChatRoom', chatRoomSchema);
+        // --- DOM ELEMENTS ---
+        const welcomeScreen = document.getElementById('welcome-screen');
+        const startChatButton = document.getElementById('start-chat-button');
+        const displayNameInput = document.getElementById('display-name-input');
+        const appDiv = document.getElementById('app');
+        const loginScreen = document.getElementById('login-screen');
+        const chatInterface = document.getElementById('chat-interface');
+        const chatListPanel = document.getElementById('chat-list-panel');
+        const chatListContainer = document.getElementById('chat-list-container');
+        const chatWindowPanel = document.getElementById('chat-window-panel');
+        const messagesContainer = document.getElementById('messages-container');
+        const messagesDiv = document.getElementById('messages');
+        const messageForm = document.getElementById('message-form');
+        const messageInput = document.getElementById('message-input');
+        const messageFooter = document.getElementById('message-footer');
+        const placeholder = document.getElementById('placeholder');
+        const adminPlaceholder = document.getElementById('admin-placeholder');
+        const chatHeaderTitle = document.getElementById('chat-header-title');
+        const adminLoginPromptButton = document.getElementById('admin-login-prompt-button');
+        const backToWelcomeButton = document.getElementById('back-to-welcome-button');
+        const loginForm = document.getElementById('login-form');
+        const loginError = document.getElementById('login-error');
+        const logoutButton = document.getElementById('logout-button');
+        const userLogoutButton = document.getElementById('user-logout-button');
+        const openChatListButton = document.getElementById('open-chat-list-button');
+        const lockChatButton = document.getElementById('lock-chat-button');
+        const lockChatText = document.getElementById('lock-chat-text');
+        const lockIcon = document.getElementById('lock-icon');
+        const unlockIcon = document.getElementById('unlock-icon');
+        const deleteConversationButton = document.getElementById('delete-conversation-button');
+        const sendMessageButton = document.getElementById('send-message-button');
+        const sendIcon = document.getElementById('send-icon');
+        const loadingSpinner = document.getElementById('loading-spinner');
+        const confirmationModal = document.getElementById('confirmation-modal');
+        const confirmationTitle = document.getElementById('confirmation-title');
+        const confirmationMessage = document.getElementById('confirmation-message');
+        const confirmCancelButton = document.getElementById('confirm-cancel-button');
+        const confirmActionButton = document.getElementById('confirm-action-button');
+        const installPromptContainer = document.getElementById('install-prompt-container');
+        const installButton = document.getElementById('install-button');
+        const closeInstallPrompt = document.getElementById('close-install-prompt');
+        const onlineAdminsPanel = document.getElementById('online-admins-panel');
 
-const adminSubscriptionSchema = new mongoose.Schema({
-    subscription: { type: Object, required: true }
-});
-const AdminSubscription = mongoose.model('AdminSubscription', adminSubscriptionSchema);
 
-const adminSchema = new mongoose.Schema({
-    email: { type: String, required: true, unique: true },
-    password: { type: String, required: true },
-    displayName: { type: String, default: 'Quản trị viên' }
-});
-const Admin = mongoose.model('Admin', adminSchema);
+        // --- STATE MANAGEMENT ---
+        let socket;
+        let isAdmin = false;
+        let currentUserId = localStorage.getItem('chatUserId');
+        let displayName = localStorage.getItem('chatDisplayName');
+        let adminDisplayName = localStorage.getItem('adminDisplayName'); 
+        let adminEmail = localStorage.getItem('adminEmail'); // CHỈNH SỬA: Thêm biến cho email admin
+        let currentRoomId = null;
+        let isCurrentChatLocked = false;
+        const originalTitle = document.title;
+        const favicon = document.getElementById('favicon');
+        const newMessageFaviconHref = "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Ccircle cx='50' cy='50' r='50' fill='red'/%3E%3Ctext x='50%' y='50%' dominant-baseline='central' text-anchor='middle' font-size='60' fill='white'%3E1%3C/text%3E%3C/svg%3E";
+        const originalFaviconHref = favicon.href;
+        let confirmActionCallback = null;
+        let deferredInstallPrompt = null;
+        
+        // --- TONE.JS INITIALIZATION ---
+        const notificationSynth = new Tone.Synth().toDestination();
 
-// --- UTILITY FUNCTIONS ---
-async function sendNotificationToAllAdmins(payload) {
-    try {
-        const subscriptions = await AdminSubscription.find();
-        subscriptions.forEach(({ subscription }) => {
-            webpush.sendNotification(subscription, payload).catch(error => {
-                if (error.statusCode === 410 || error.statusCode === 404) {
-                    AdminSubscription.deleteOne({ 'subscription.endpoint': subscription.endpoint }).exec();
+
+        // --- UTILITY FUNCTIONS ---
+        function showCustomConfirmationModal({ title, message, confirmText, confirmClass = 'bg-red-600', onConfirm }) {
+            confirmationTitle.textContent = title;
+            confirmationMessage.textContent = message;
+            confirmActionButton.textContent = confirmText;
+            
+            confirmActionButton.className = `px-4 py-2 text-white rounded-lg`;
+            confirmActionButton.classList.add(confirmClass, `hover:${confirmClass.replace('600', '700')}`);
+
+            confirmActionCallback = onConfirm;
+            confirmationModal.classList.remove('hidden');
+        }
+
+        function hideConfirmationModal() {
+            confirmationModal.classList.add('hidden');
+            confirmActionCallback = null;
+        }
+
+        function linkify(text, forAdminBubble = false) {
+            const urlRegex = /(\b(https?|ftp|file):\/\/[-A-Z0-9+&@#\/%?=~_|!:,.;]*[-A-Z0-9+&@#\/%=~_|])/ig;
+            const tempDiv = document.createElement('div');
+            tempDiv.textContent = text;
+            const sanitizedText = tempDiv.innerHTML;
+            return sanitizedText.replace(urlRegex, function(url) {
+                const linkClass = forAdminBubble ? 'text-blue-300 hover:text-blue-100 underline break-all' : 'text-blue-600 hover:underline break-all';
+                return `<a href="${url}" target="_blank" rel="noopener noreferrer" class="${linkClass}">${url}</a>`;
+            });
+        }
+
+        function showToastNotification(message, type = 'info') {
+            const toastContainer = document.getElementById('toast-container');
+            const toastId = 'toast-' + Date.now();
+            const toast = document.createElement('div');
+            toast.id = toastId;
+            toast.className = 'flex items-center gap-3 p-4 bg-white rounded-xl shadow-lg border border-gray-200 transform transition-all duration-500 translate-x-full opacity-0';
+
+            let iconSvg;
+            if (type === 'success') {
+                iconSvg = `<svg class="w-6 h-6 text-green-500 flex-shrink-0" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M9 12.75L11.25 15 15 9.75M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>`;
+            } else if (type === 'error') {
+                iconSvg = `<svg class="w-6 h-6 text-red-500 flex-shrink-0" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M12 9v3.75m-9.303 3.376c-.866 1.5.174 3.35 1.9 3.35h13.713c1.726 0 2.766-1.85 1.9-3.35L13.737 3.376c-.863-1.5-3.033-1.5-3.896 0L2.697 16.126zM12 15.75h.007v.008H12v-.008z" /></svg>`;
+            }
+            else {
+                iconSvg = `<svg class="w-6 h-6 text-[#6B4F4F] flex-shrink-0" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" d="M8.625 12a.375.375 0 11-.75 0 .375.375 0 01.75 0zm0 0H8.25m4.125 0a.375.375 0 11-.75 0 .375.375 0 01.75 0zm0 0H12m4.125 0a.375.375 0 11-.75 0 .375.375 0 01.75 0zm0 0h-.375M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>`;
+            }
+
+            const contentDiv = document.createElement('div');
+            const title = document.createElement('p');
+            title.className = 'font-bold text-sm text-[#6B4F4F]';
+            title.textContent = message.title;
+            const text = document.createElement('p');
+            text.className = 'text-sm text-gray-600';
+            text.textContent = message.text.length > 50 ? message.text.substring(0, 50) + '...' : message.text;
+            contentDiv.appendChild(title);
+            contentDiv.appendChild(text);
+            toast.innerHTML = iconSvg;
+            toast.appendChild(contentDiv);
+            toastContainer.appendChild(toast);
+
+            setTimeout(() => {
+                toast.classList.remove('translate-x-full', 'opacity-0');
+            }, 10);
+            setTimeout(() => {
+                const toastToRemove = document.getElementById(toastId);
+                if (toastToRemove) {
+                    toastToRemove.classList.add('translate-x-full', 'opacity-0');
+                    toastToRemove.addEventListener('transitionend', () => toastToRemove.remove());
+                }
+            }, 4000);
+        }
+
+        function updateFavicon(hasNewMessage) {
+            favicon.href = hasNewMessage ? newMessageFaviconHref : originalFaviconHref;
+        }
+
+        function showSendingState(isSending) {
+            if (isSending) {
+                sendMessageButton.disabled = true;
+                sendIcon.classList.add('hidden');
+                loadingSpinner.classList.remove('hidden');
+            } else {
+                if (!isCurrentChatLocked && !messageInput.disabled) {
+                    sendMessageButton.disabled = false;
+                }
+                sendIcon.classList.remove('hidden');
+                loadingSpinner.classList.add('hidden');
+            }
+        }
+
+        function urlBase64ToUint8Array(base64String) {
+            const padding = '='.repeat((4 - base64String.length % 4) % 4);
+            const base64 = (base64String + padding).replace(/-/g, '+').replace(/_/g, '/');
+            const rawData = window.atob(base64);
+            const outputArray = new Uint8Array(rawData.length);
+            for (let i = 0; i < rawData.length; ++i) {
+                outputArray[i] = rawData.charCodeAt(i);
+            }
+            return outputArray;
+        }
+        
+        async function askPermissionAndSubscribe() {
+            if (!('serviceWorker' in navigator) || !('PushManager' in window)) {
+                return;
+            }
+
+            try {
+                const permissionResult = await Notification.requestPermission();
+                if (permissionResult !== 'granted') {
+                    if (permissionResult === 'denied') {
+                         showToastNotification({
+                            title: "Thông Báo Bị Chặn",
+                            text: "Bạn đã chặn thông báo. Vui lòng bật lại trong cài đặt trang web của trình duyệt."
+                        }, 'error');
+                    }
+                    return;
+                }
+
+                const swRegistration = await navigator.serviceWorker.ready;
+                let subscription = await swRegistration.pushManager.getSubscription();
+
+                if (subscription === null) {
+                    subscription = await swRegistration.pushManager.subscribe({
+                        userVisibleOnly: true,
+                        applicationServerKey: urlBase64ToUint8Array(VAPID_PUBLIC_KEY)
+                    });
+                }
+                
+                const endpoint = isAdmin ? '/api/save-admin-subscription' : '/api/save-subscription';
+                const body = isAdmin ? { subscription } : { subscription, roomId: currentUserId };
+
+                await fetch(`${BACKEND_URL}${endpoint}`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(body)
+                });
+
+            } catch (error) {
+                console.error('Failed to subscribe the user for push notifications: ', error);
+            }
+        }
+
+        function playNewMessageSound() {
+            try {
+                if (Tone.context.state === 'running') {
+                    notificationSynth.triggerAttackRelease("C5", "8n");
+                }
+            } catch (e) {
+                console.error("Could not play notification sound:", e);
+            }
+        }
+
+        function showScreen(screen) {
+            [welcomeScreen, loginScreen, chatInterface].forEach(s => s.classList.add('hidden'));
+            screen.classList.remove('hidden');
+            screen.classList.add('flex');
+        }
+
+        function showChatList() {
+            chatListPanel.classList.remove('hidden');
+            chatListPanel.classList.add('flex');
+            chatWindowPanel.classList.add('hidden');
+            if (window.innerWidth >= 768) {
+                chatWindowPanel.classList.remove('hidden');
+                chatWindowPanel.classList.add('flex');
+            }
+        }
+
+        function showChatWindow() {
+            chatWindowPanel.classList.remove('hidden');
+            chatWindowPanel.classList.add('flex');
+            if (window.innerWidth < 768) {
+                chatListPanel.classList.add('hidden');
+            }
+        }
+
+        function resetChatWindow() {
+            messagesDiv.innerHTML = '';
+            adminPlaceholder.classList.remove('hidden');
+            placeholder.classList.add('hidden');
+            messageFooter.classList.add('hidden');
+            chatHeaderTitle.textContent = "NỘI DUNG HỘI THOẠI";
+            updateAdminControls(false);
+            currentRoomId = null;
+        }
+
+        confirmActionButton.addEventListener('click', () => {
+            if (typeof confirmActionCallback === 'function') {
+                confirmActionCallback();
+            }
+            hideConfirmationModal();
+        });
+        confirmCancelButton.addEventListener('click', hideConfirmationModal);
+
+
+        function initializeSocketConnection() {
+            if (socket) socket.disconnect();
+            socket = io(BACKEND_URL);
+            setupSocketListeners();
+        }
+
+        startChatButton.addEventListener('click', async () => {
+            if (Tone.context.state !== 'running') {
+                await Tone.start();
+            }
+            displayName = displayNameInput.value.trim() || 'Sư Huynh Vô Danh';
+            localStorage.setItem('chatDisplayName', displayName);
+            if (!currentUserId) {
+                currentUserId = 'user_' + Date.now() + Math.random().toString(36).substring(2, 9);
+                localStorage.setItem('chatUserId', currentUserId);
+            }
+
+            await askPermissionAndSubscribe(); 
+            
+            isAdmin = false;
+            initializeSocketConnection();
+            showScreen(chatInterface);
+        });
+
+        adminLoginPromptButton.addEventListener('click', () => showScreen(loginScreen));
+        backToWelcomeButton.addEventListener('click', () => showScreen(welcomeScreen));
+
+        const handleLogout = () => {
+            localStorage.clear();
+            window.location.reload();
+        };
+
+        logoutButton.addEventListener('click', handleLogout);
+
+        userLogoutButton.addEventListener('click', () => {
+             showCustomConfirmationModal({
+                title: "Xác nhận Đăng Xuất",
+                message: "Sau khi Đăng Xuất, Sư Huynh sẽ không còn nhận được tin nhắn của Quản Trị Viên nữa ạ!",
+                confirmText: "Đăng Xuất",
+                confirmClass: 'bg-orange-500',
+                onConfirm: handleLogout
+            });
+        });
+
+        openChatListButton.addEventListener('click', showChatList);
+
+        // CHỈNH SỬA: Lưu cả email khi đăng nhập
+        loginForm.addEventListener('submit', async e => {
+            e.preventDefault();
+            try {
+                const response = await fetch(`${BACKEND_URL}/login`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ email: loginForm.email.value, password: loginForm.password.value })
+                });
+                if (!response.ok) throw new Error('Login failed');
+                const { token, displayName, email } = await response.json();
+                localStorage.setItem('adminToken', token);
+                localStorage.setItem('adminDisplayName', displayName);
+                localStorage.setItem('adminEmail', email); // Lưu email
+                adminDisplayName = displayName;
+                adminEmail = email; // Cập nhật biến email
+                isAdmin = true;
+                initializeSocketConnection();
+                showScreen(chatInterface);
+            } catch (err) {
+                loginError.textContent = "Sai email hoặc mật khẩu.";
+            }
+        });
+        
+        // CHỈNH SỬA: Gửi cả displayName và email khi tham gia
+        function setupAdminView() {
+            chatListPanel.classList.remove('hidden');
+            chatListPanel.classList.add('flex');
+            onlineAdminsPanel.classList.remove('hidden');
+            chatWindowPanel.classList.add('hidden');
+            if (window.innerWidth >= 768) {
+                chatWindowPanel.classList.remove('hidden');
+                chatWindowPanel.classList.add('flex');
+            }
+            adminPlaceholder.classList.remove('hidden');
+            placeholder.classList.add('hidden');
+            messageFooter.classList.add('hidden');
+            chatHeaderTitle.textContent = "NỘI DUNG HỘI THOẠI";
+            updateAdminControls(false);
+            openChatListButton.classList.remove('hidden');
+            userLogoutButton.classList.add('hidden');
+            
+            socket.emit('admin:join', { displayName: adminDisplayName, email: adminEmail });
+
+            askPermissionAndSubscribe(); 
+        }
+
+        function setupUserView() {
+            showChatWindow();
+            chatListPanel.classList.add('hidden');
+            onlineAdminsPanel.classList.add('hidden');
+            adminPlaceholder.classList.add('hidden');
+            placeholder.classList.remove('hidden');
+            messageFooter.classList.remove('hidden');
+            chatHeaderTitle.textContent = `${displayName}`;
+            openChatListButton.classList.add('hidden');
+            userLogoutButton.classList.remove('hidden');
+            updateAdminControls(false);
+            currentRoomId = currentUserId;
+            socket.emit('user:join', { userId: currentUserId, displayName: displayName });
+        }
+
+        function setupSocketListeners() {
+            socket.on('connect', () => {
+                const token = localStorage.getItem('adminToken');
+                if (token && isAdmin) {
+                    setupAdminView();
+                } else if (currentUserId && !isAdmin) {
+                    setupUserView();
+                }
+            });
+
+            socket.on('chatList', renderChatRoomList);
+            socket.on('roomDetails', ({ messages, isClosed }) => {
+                isCurrentChatLocked = isClosed;
+                renderMessages(messages);
+                if(!isAdmin) {
+                    updateUserMessageInputLock();
                 } else {
-                    console.error('Error sending push notification to admin:', error);
+                    updateAdminControls(true && currentRoomId !== ADMIN_ONLY_ROOM_ID);
+                    updateLockUI();
+                }
+            });
+            
+            socket.on('newMessage', (message) => {
+                const isScrolledToBottom = messagesContainer.scrollHeight - messagesContainer.clientHeight <= messagesContainer.scrollTop + 5;
+                
+                if (message.roomId === currentRoomId) {
+                    appendMessage(message);
+                    if (isScrolledToBottom) scrollToBottom();
+                }
+                
+                if (message.senderId === (isAdmin ? 'admin' : currentUserId)) {
+                    showSendingState(false);
+                }
+                
+                const shouldNotify = (!isAdmin && message.isAdmin) || (isAdmin && !message.isAdmin && message.roomId !== ADMIN_ONLY_ROOM_ID);
+
+                if (shouldNotify) {
+                    if (document.hidden) {
+                        const notificationTitle = message.isAdmin ? `Tin nhắn từ Quản trị viên` : `Tin nhắn mới từ ${message.displayName}`;
+                        if ('serviceWorker' in navigator && navigator.serviceWorker.controller) {
+                            navigator.serviceWorker.controller.postMessage({
+                                type: 'SHOW_NOTIFICATION',
+                                payload: {
+                                    title: notificationTitle,
+                                    body: message.text,
+                                    url: `${window.location.origin}/?roomId=${message.roomId}`,
+                                    tag: message.roomId
+                                }
+                            });
+                        }
+                        document.title = `(Mới) ${notificationTitle}`;
+                        updateFavicon(true);
+                    } else if (message.roomId === currentRoomId) {
+                        playNewMessageSound();
+                    }
+                }
+            });
+
+
+            socket.on('chat:locked', ({ roomId, isLocked }) => {
+                if(currentRoomId === roomId) {
+                   isCurrentChatLocked = isLocked;
+                   if (!isAdmin) {
+                       updateUserMessageInputLock();
+                   } else {
+                       updateLockUI();
+                   }
+                }
+                const roomItem = document.querySelector(`#chat-list-container > div[data-room-id="${roomId}"]`);
+                if(roomItem) {
+                    const lockIconSvg = `<svg class="w-4 h-4 text-gray-500" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M10 1a4.5 4.5 0 00-4.5 4.5V9H5a2 2 0 00-2 2v6a2 2 0 002 2h10a2 2 0 002-2v-6a2 2 0 00-2-2h-.5V5.5A4.5 4.5 0 0010 1zm3 8V5.5a3 3 0 10-6 0V9h6z" clip-rule="evenodd" /></svg>`;
+                    const lockIconContainer = roomItem.querySelector('.lock-icon-container');
+                    if(isLocked) {
+                        roomItem.classList.add('opacity-60');
+                        if(lockIconContainer) lockIconContainer.innerHTML = lockIconSvg;
+                    } else {
+                        roomItem.classList.remove('opacity-60');
+                         if(lockIconContainer) lockIconContainer.innerHTML = '';
+                    }
+                }
+            });
+
+            socket.on('messageDeleted', (messageId) => {
+                const messageElement = document.getElementById('message-' + messageId);
+                if (messageElement) {
+                    messageElement.classList.add('opacity-0', 'transition-opacity', 'duration-300');
+                    setTimeout(() => {
+                        messageElement.remove();
+                    }, 300);
+                }
+            });
+
+            socket.on('conversationDeleted', (deletedRoomId) => {
+                if (isAdmin) {
+                    const roomItem = document.querySelector(`#chat-list-container > div[data-room-id="${deletedRoomId}"]`);
+                    if (roomItem) {
+                        roomItem.remove();
+                    }
+                    if (currentRoomId === deletedRoomId) {
+                       resetChatWindow();
+                    }
+                    showToastNotification({ title: "Thành công", text: "Đã xóa cuộc hội thoại." }, 'success');
+                }
+            });
+
+            socket.on('chatEndedByAdmin', () => {
+                if (!isAdmin) {
+                    messageInput.disabled = true;
+                    sendMessageButton.disabled = true;
+                    messageInput.placeholder = "Cuộc trò chuyện đã kết thúc.";
+                    let endNotice = document.getElementById('end-notice');
+                    if (!endNotice) {
+                         endNotice = document.createElement('p');
+                         endNotice.id = 'end-notice';
+                         endNotice.className = 'text-center text-sm text-red-600 pb-2';
+                         messageFooter.prepend(endNotice);
+                    }
+                    endNotice.textContent = 'Quản trị viên đã kết thúc cuộc trò chuyện này. Vui lòng tải lại trang để bắt đầu cuộc trò chuyện mới.';
+                    userLogoutButton.textContent = "Bắt đầu lại";
+                }
+            });
+
+            socket.on('chatError', (errorMessage) => {
+                showToastNotification({ title: "Lỗi", text: errorMessage }, 'error');
+                showSendingState(false);
+            });
+
+            // CHỈNH SỬA: Cập nhật giao diện hiển thị cả email
+            socket.on('admin:list:update', (admins) => {
+                const adminListUl = document.getElementById('online-admins-list');
+                adminListUl.innerHTML = '';
+                if (admins.length > 0) {
+                    admins.forEach(admin => {
+                        const li = document.createElement('li');
+                        li.className = 'text-sm';
+                        li.innerHTML = `
+                            <div>
+                                <div class="flex items-center">
+                                    <span class="w-2 h-2 bg-green-500 rounded-full mr-2 animate-pulse"></span>
+                                    <span class="font-medium text-gray-800">${admin.displayName}</span>
+                                </div>
+                                <div class="text-xs text-gray-500 ml-4">${admin.email}</div>
+                            </div>
+                        `;
+                        adminListUl.appendChild(li);
+                    });
+                } else {
+                    adminListUl.innerHTML = '<li class="text-xs text-gray-500 italic">Không có ai đang online.</li>';
+                }
+            });
+        }
+        function renderChatRoomList(rooms) {
+            chatListContainer.innerHTML = '';
+            if (rooms.length === 0) {
+                chatListContainer.innerHTML = `<p class="p-4 text-center text-gray-500">Chưa có cuộc trò chuyện nào.</p>`;
+            } else {
+                rooms.forEach(room => renderChatRoomItem(room));
+            }
+        }
+        function renderChatRoomItem(room) {
+            const item = document.createElement('div');
+            item.className = `p-4 border-b border-gray-200 cursor-pointer hover:bg-[#f5f1e9] transition ${room._id === currentRoomId ? 'bg-[#e6dacb]' : ''}`;
+            if(room.isClosed) item.classList.add('opacity-60');
+            if(room.isSpecial) item.classList.add('bg-yellow-50'); 
+            item.dataset.roomId = room._id;
+            const lastMessageTime = room.timestamp ? new Date(room.timestamp).toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' }) : '';
+            item.innerHTML = `
+                <div class="flex justify-between items-center">
+                    <p class="font-bold text-sm truncate text-[#6B4F4F]">${room.displayName || 'Sư huynh ẩn danh'}</p>
+                    <p class="text-xs text-gray-500">${lastMessageTime}</p>
+                </div>
+                <div class="flex justify-between items-start mt-1">
+                    <p class="text-sm text-gray-600 truncate pr-2">${room.lastMessage || '...'}</p>
+                    <div class="flex items-center space-x-2 flex-shrink-0">
+                       <span class="lock-icon-container">
+                           ${!room.isSpecial && room.isClosed ? `<svg class="w-4 h-4 text-gray-500" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M10 1a4.5 4.5 0 00-4.5 4.5V9H5a2 2 0 00-2 2v6a2 2 0 002 2h10a2 2 0 002-2v-6a2 2 0 00-2-2h-.5V5.5A4.5 4.5 0 0010 1zm3 8V5.5a3 3 0 10-6 0V9h6z" clip-rule="evenodd" /></svg>` : ''}
+                       </span>
+                       ${!room.isSpecial && room.hasUnreadAdmin ? '<span class="w-3 h-3 bg-red-500 rounded-full"></span>' : ''}
+                    </div>
+                </div>
+            `;
+            item.addEventListener('click', () => {
+                currentRoomId = room._id;
+                isCurrentChatLocked = room.isClosed;
+                socket.emit('admin:viewRoom', room._id);
+                chatHeaderTitle.textContent = `${room.displayName || 'Sư huynh ẩn danh'}`;
+                messageFooter.classList.remove('hidden');
+                document.querySelectorAll('#chat-list-container > div').forEach(el => {
+                    el.classList.toggle('bg-[#e6dacb]', el.dataset.roomId === room._id);
+                });
+                if (window.innerWidth < 768) {
+                    showChatWindow();
+                }
+            });
+            chatListContainer.appendChild(item);
+        }
+        function renderMessages(messages) {
+            messagesDiv.innerHTML = '';
+            if (messages.length === 0) {
+                adminPlaceholder.classList.toggle('hidden', !isAdmin || !currentRoomId);
+                placeholder.classList.toggle('hidden', isAdmin || messages.length > 0);
+            } else {
+                placeholder.classList.add('hidden');
+                adminPlaceholder.classList.add('hidden');
+                messages.forEach(appendMessage);
+            }
+            scrollToBottom();
+        }
+        messageForm.addEventListener('submit', async e => {
+            e.preventDefault();
+            const text = messageInput.value.trim();
+            if (!text || !currentRoomId || !socket) {
+                showToastNotification({ title: "Lỗi", text: "Không thể gửi tin nhắn. Vui lòng kiểm tra kết nối hoặc chọn cuộc trò chuyện." }, 'error');
+                return;
+            }
+
+            showSendingState(true);
+            
+            const senderDisplayName = isAdmin ? adminDisplayName : displayName;
+
+            socket.emit('sendMessage', {
+                roomId: currentRoomId,
+                senderId: isAdmin ? 'admin' : currentUserId,
+                text,
+                isAdmin,
+                displayName: senderDisplayName
+            }, (response) => {
+                showSendingState(false);
+                if (response && response.status === 'error') {
+                    showToastNotification({ title: "Lỗi gửi tin nhắn", text: response.message }, 'error');
+                } else {
+                    messageInput.value = '';
                 }
             });
         });
-    } catch (error) {
-        console.error("Failed to fetch admin subscriptions:", error);
-    }
-}
-
-// --- INITIAL ADMIN CREATION ---
-async function createInitialAdmin() {
-    try {
-        const existingAdmin = await Admin.findOne({ email: INITIAL_ADMIN_EMAIL });
-        if (!existingAdmin) {
-            const hashedPassword = await bcrypt.hash(ADMIN_DEFAULT_PASSWORD, 10);
-            await new Admin({ 
-                email: INITIAL_ADMIN_EMAIL, 
-                password: hashedPassword,
-                displayName: 'Admin Chính' 
-            }).save();
-            console.log(`Initial admin created. Email: ${INITIAL_ADMIN_EMAIL}`);
-        }
-    } catch (error) {
-        console.error("Error creating initial admin:", error);
-    }
-}
-createInitialAdmin();
-
-
-// --- API ROUTES ---
-app.post('/login', async (req, res) => {
-    try {
-        const { email, password } = req.body;
-        const admin = await Admin.findOne({ email });
-        if (!admin || !await bcrypt.compare(password, admin.password)) {
-            return res.status(401).json({ message: "Sai email hoặc mật khẩu." });
-        }
-        // CHỈNH SỬA: Thêm email vào token và response
-        const token = jwt.sign({ id: admin._id, displayName: admin.displayName, email: admin.email }, JWT_SECRET, { expiresIn: '24h' });
-        res.json({ token, displayName: admin.displayName, email: admin.email });
-    } catch (error) {
-        res.status(500).json({ message: "Lỗi máy chủ" });
-    }
-});
-
-app.post('/api/save-subscription', async (req, res) => {
-    try {
-        const { subscription, roomId } = req.body;
-        if (roomId && subscription) {
-            await ChatRoom.findByIdAndUpdate(roomId, { pushSubscription: subscription }, { upsert: true });
-            res.status(201).json({ message: 'User subscription saved.' });
-        } else {
-            res.status(400).json({ message: 'Room ID and subscription are required.' });
-        }
-    } catch (error) {
-        console.error("Error saving user subscription:", error);
-        res.status(500).json({ message: 'Could not save subscription.' });
-    }
-});
-
-app.post('/api/save-admin-subscription', async (req, res) => {
-    try {
-        const { subscription } = req.body;
-        if (subscription) {
-            await AdminSubscription.updateOne(
-                { 'subscription.endpoint': subscription.endpoint },
-                { $set: { subscription } },
-                { upsert: true }
-            );
-            res.status(201).json({ message: 'Admin subscription saved.' });
-        } else {
-            res.status(400).json({ message: 'Subscription is required.' });
-        }
-    } catch (error) {
-        console.error("Error saving admin subscription:", error);
-        res.status(500).json({ message: 'Could not save admin subscription.' });
-    }
-});
-
-
-// --- SOCKET.IO LOGIC ---
-io.on('connection', (socket) => {
-  console.log('A user connected:', socket.id);
-
-  // CHỈNH SỬA: Nhận cả displayName và email từ client
-  socket.on('admin:join', async (data) => {
-    const displayName = data && data.displayName ? data.displayName : 'Quản trị viên';
-    const email = data && data.email ? data.email : 'N/A';
-
-    socket.join('admin_room');
-    socket.join(ADMIN_ONLY_ROOM_ID);
-
-    // Thêm admin vào danh sách online với cả displayName và email
-    onlineAdmins.set(socket.id, { displayName, email });
-
-    // Gửi danh sách phòng chat
-    const userRooms = await ChatRoom.find().sort({ timestamp: -1 });
-    const adminRoomInfo = {
-        _id: ADMIN_ONLY_ROOM_ID,
-        displayName: '⭐️ Phòng chat Quản trị viên',
-        lastMessage: 'Nơi các quản trị viên trao đổi nội bộ...',
-        timestamp: new Date(),
-        isSpecial: true
-    };
-    const allRooms = [adminRoomInfo, ...userRooms];
-    socket.emit('chatList', allRooms);
-    
-    // Gửi danh sách admin đang online cho tất cả admin
-    io.to('admin_room').emit('admin:list:update', Array.from(onlineAdmins.values()));
-  });
-  
-  socket.on('user:join', async ({ userId, displayName }) => {
-      socket.join(userId);
-      const isNewRoom = !(await ChatRoom.findById(userId));
-
-      const roomUpdate = { displayName: displayName };
-      const room = await ChatRoom.findByIdAndUpdate(userId, roomUpdate, { upsert: true, new: true, setDefaultsOnInsert: true });
-      socket.emit('roomDetails', { messages: await Message.find({ roomId: userId }).sort({ timestamp: 1 }), isClosed: room.isClosed });
-
-      if (isNewRoom) {
-          const payload = JSON.stringify({
-              title: '💬 Cuộc trò chuyện mới!',
-              body: `Người dùng "${displayName}" đã bắt đầu một cuộc trò chuyện.`,
-              url: `/?roomId=${userId}`
-          });
-          sendNotificationToAllAdmins(payload);
-          const rooms = await ChatRoom.find().sort({ timestamp: -1 });
-          const adminRoomInfo = { _id: ADMIN_ONLY_ROOM_ID, displayName: '⭐️ Phòng chat Quản trị viên', lastMessage: 'Nơi các quản trị viên trao đổi nội bộ...', timestamp: new Date(), isSpecial: true };
-          io.to('admin_room').emit('chatList', [adminRoomInfo, ...rooms]);
-      }
-  });
-
-  socket.on('admin:viewRoom', async (roomId) => {
-      await socket.join(roomId);
-      
-      if (roomId === ADMIN_ONLY_ROOM_ID) {
-          const messages = await Message.find({ roomId: ADMIN_ONLY_ROOM_ID }).sort({ timestamp: 1 });
-          socket.emit('roomDetails', { messages, isClosed: false });
-      } else {
-          const room = await ChatRoom.findByIdAndUpdate(roomId, { hasUnreadAdmin: false }, { new: true });
-          if (room) {
-            socket.emit('roomDetails', { messages: await Message.find({ roomId }).sort({ timestamp: 1 }), isClosed: room.isClosed });
-            const rooms = await ChatRoom.find().sort({ timestamp: -1 });
-            const adminRoomInfo = { _id: ADMIN_ONLY_ROOM_ID, displayName: '⭐️ Phòng chat Quản trị viên', lastMessage: 'Nơi các quản trị viên trao đổi nội bộ...', timestamp: new Date(), isSpecial: true };
-            io.to('admin_room').emit('chatList', [adminRoomInfo, ...rooms]);
-          }
-      }
-  });
-
-  socket.on('sendMessage', async (data, callback) => {
-    const { roomId, senderId, text, isAdmin, displayName } = data;
-    try {
-        if (roomId === ADMIN_ONLY_ROOM_ID) {
-            if (!isAdmin) {
-                return callback({ status: 'error', message: 'Không được phép.' });
+        function appendMessage(msg) {
+            if (document.getElementById('message-' + msg._id)) {
+                return;
             }
-            const newMessage = new Message({ roomId, senderId, text, isAdmin, displayName });
-            await newMessage.save();
-            io.to(ADMIN_ONLY_ROOM_ID).emit('newMessage', newMessage);
-            return callback({ status: 'success' });
-        }
 
-        const room = await ChatRoom.findById(roomId);
-        if (!room) {
-            return callback({ status: 'error', message: 'Cuộc trò chuyện không tồn tại.' });
-        }
-        if (room.isClosed && !isAdmin) {
-            return callback({ status: 'error', message: 'Cuộc trò chuyện này đã bị khoá.' });
-        }
-        
-        const newMessage = new Message({ roomId, senderId, text, isAdmin, displayName });
-        await newMessage.save();
+            placeholder.classList.add('hidden');
+            adminPlaceholder.classList.add('hidden');
+            const wrapper = document.createElement('div');
+            wrapper.id = 'message-' + msg._id;
+            const bubble = document.createElement('div');
+            const time = document.createElement('div');
+            const nameSpan = document.createElement('div');
+            const messageContentDiv = document.createElement('div');
 
-        const roomUpdate = { lastMessage: text, timestamp: new Date(), hasUnreadAdmin: !isAdmin };
-        await ChatRoom.findByIdAndUpdate(roomId, roomUpdate);
+            wrapper.classList.add('flex', 'flex-col', 'w-full');
+            bubble.classList.add('max-w-[85%]', 'sm:max-w-md', 'px-4', 'py-2', 'rounded-2xl', 'break-words', 'relative', 'group');
+            time.classList.add('text-xs', 'text-gray-500', 'mt-1');
+            nameSpan.classList.add('font-bold', 'text-xs', 'block', 'mb-1');
 
-        io.to(roomId).to('admin_room').emit('newMessage', newMessage);
-        
-        const rooms = await ChatRoom.find().sort({ timestamp: -1 });
-        const adminRoomInfo = { _id: ADMIN_ONLY_ROOM_ID, displayName: '⭐️ Phòng chat Quản trị viên', lastMessage: 'Nơi các quản trị viên trao đổi nội bộ...', timestamp: new Date(), isSpecial: true };
-        io.to('admin_room').emit('chatList', [adminRoomInfo, ...rooms]);
+            const msgDate = msg.timestamp ? new Date(msg.timestamp) : new Date();
+            time.textContent = msgDate.toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' });
 
-        if (isAdmin) {
-            if (room.pushSubscription) {
-                const payload = JSON.stringify({
-                    title: `Tin nhắn từ Quản trị viên`, body: text, icon: '/icons/icon-192x192.png', url: `/?roomId=${roomId}`
+            if (msg.isAdmin) {
+                wrapper.classList.add('items-end');
+                bubble.classList.add('bg-[#6B4F4F]', 'text-white', 'shadow-md');
+                time.classList.add('text-right');
+                nameSpan.innerHTML = `<svg class="w-4 h-4 inline-block mr-1 text-yellow-300" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clip-rule="evenodd" /></svg> ${msg.displayName || 'Quản trị viên'}`;
+                nameSpan.classList.add('text-yellow-200');
+            } else {
+                wrapper.classList.add('items-start');
+                bubble.classList.add('bg-white', 'shadow-sm');
+                time.classList.add('text-left');
+                nameSpan.textContent = msg.displayName || 'Sư Huynh';
+                nameSpan.classList.add('text-gray-900');
+            }
+            messageContentDiv.innerHTML = linkify(msg.text, msg.isAdmin);
+            bubble.appendChild(nameSpan);
+            bubble.appendChild(messageContentDiv);
+            wrapper.appendChild(bubble);
+            wrapper.appendChild(time);
+            messagesDiv.appendChild(wrapper);
+
+            if (isAdmin && currentRoomId) {
+                const deleteButton = document.createElement('button');
+                deleteButton.innerHTML = `<svg class="w-4 h-4" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z" clip-rule="evenodd" /></svg>`;
+
+                const positionClass = 'absolute -top-1.5 ' + (msg.isAdmin ? '-left-1.5' : '-right-1.5');
+                deleteButton.className = `${positionClass} bg-red-500 text-white rounded-full p-0.5 opacity-0 group-hover:opacity-100 transition-opacity cursor-pointer focus:outline-none`;
+
+                deleteButton.addEventListener('click', (e) => {
+                    e.stopPropagation();
+                    socket.emit('admin:deleteMessage', { messageId: msg._id, roomId: currentRoomId });
                 });
-                webpush.sendNotification(room.pushSubscription, payload).catch(err => console.error('Error sending notification to user:', err));
+                bubble.appendChild(deleteButton);
             }
-        } else {
-            const payload = JSON.stringify({
-                title: `Tin nhắn từ ${displayName}`, body: text, icon: '/icons/icon-192x192.png', url: `/?roomId=${roomId}`
-            });
-            sendNotificationToAllAdmins(payload);
         }
 
-        if (callback) callback({ status: 'success' });
-    } catch (error) {
-        console.error("Error sending message:", error);
-        if (callback) callback({ status: 'error', message: 'Lỗi máy chủ khi gửi tin nhắn.' });
-        socket.emit('chatError', 'Không thể gửi tin nhắn. Vui lòng thử lại.');
-    }
-  });
+        function scrollToBottom() {
+            messagesContainer.scrollTop = messagesContainer.scrollHeight;
+        }
 
-  socket.on('admin:toggleLock', async ({ roomId, isLocked }) => {
-      if (roomId === ADMIN_ONLY_ROOM_ID) return;
-      await ChatRoom.findByIdAndUpdate(roomId, { isClosed: isLocked });
-      io.to(roomId).to('admin_room').emit('chat:locked', { roomId, isLocked });
-  });
-  
-  socket.on('admin:deleteMessage', async ({ messageId, roomId }) => {
-      try {
-          const deletedMessage = await Message.findByIdAndDelete(messageId);
-          if (deletedMessage) {
-              io.to(roomId).to('admin_room').emit('messageDeleted', messageId);
-              
-              if (roomId !== ADMIN_ONLY_ROOM_ID) {
-                  const lastMsg = await Message.findOne({ roomId }).sort({ timestamp: -1 });
-                  await ChatRoom.findByIdAndUpdate(roomId, {
-                      lastMessage: lastMsg ? lastMsg.text : "...",
-                      timestamp: lastMsg ? lastMsg.timestamp : new Date()
-                  });
-                  const rooms = await ChatRoom.find().sort({ timestamp: -1 });
-                  const adminRoomInfo = { _id: ADMIN_ONLY_ROOM_ID, displayName: '⭐️ Phòng chat Quản trị viên', lastMessage: 'Nơi các quản trị viên trao đổi nội bộ...', timestamp: new Date(), isSpecial: true };
-                  io.to('admin_room').emit('chatList', [adminRoomInfo, ...rooms]);
-              }
-          }
-      } catch (error) {
-          console.error("Error deleting message:", error);
-      }
-  });
+        function updateAdminControls(show) {
+            const isUserRoom = show && currentRoomId !== ADMIN_ONLY_ROOM_ID;
+            lockChatButton.classList.toggle('hidden', !isUserRoom);
+            deleteConversationButton.classList.toggle('hidden', !isUserRoom);
+        }
 
-  socket.on('admin:deleteConversation', async ({ roomId }) => {
-      if (roomId === ADMIN_ONLY_ROOM_ID) return;
-      try {
-          await Message.deleteMany({ roomId: roomId });
-          await ChatRoom.findByIdAndDelete(roomId);
-          io.to('admin_room').emit('conversationDeleted', roomId);
-          io.to(roomId).emit('chatEndedByAdmin');
-      } catch (error) {
-          console.error("Error deleting conversation:", error);
-      }
-  });
+        lockChatButton.addEventListener('click', () => {
+            if (!isAdmin || !currentRoomId || currentRoomId === ADMIN_ONLY_ROOM_ID) return;
+            socket.emit('admin:toggleLock', { roomId: currentRoomId, isLocked: !isCurrentChatLocked });
+        });
 
-  socket.on('disconnect', () => {
-    console.log('User disconnected:', socket.id);
-    if (onlineAdmins.has(socket.id)) {
-        onlineAdmins.delete(socket.id);
-        io.to('admin_room').emit('admin:list:update', Array.from(onlineAdmins.values()));
-    }
-  });
-});
+        deleteConversationButton.addEventListener('click', () => {
+            if (!isAdmin || !currentRoomId || currentRoomId === ADMIN_ONLY_ROOM_ID) return;
+            showCustomConfirmationModal({
+                title: "Xác nhận Xóa",
+                message: "Bạn có chắc chắn muốn xóa toàn bộ cuộc hội thoại này không? Hành động này không thể hoàn tác.",
+                confirmText: "Xác nhận Xóa",
+                confirmClass: "bg-red-600",
+                onConfirm: () => {
+                    socket.emit('admin:deleteConversation', { roomId: currentRoomId });
+                }
+            });
+        });
 
-server.listen(PORT, () => {
-  console.log(`Server is running on port ${PORT}`);
-});
+        function updateLockUI() {
+            if (isCurrentChatLocked) {
+                lockChatText.textContent = 'Mở khoá';
+                lockChatButton.classList.remove('bg-yellow-500', 'hover:bg-yellow-600');
+                lockChatButton.classList.add('bg-green-500', 'hover:bg-green-600');
+                lockIcon.classList.add('hidden');
+                unlockIcon.classList.remove('hidden');
+            } else {
+                lockChatText.textContent = 'Khoá';
+                lockChatButton.classList.remove('bg-green-500', 'hover:bg-green-600');
+                lockChatButton.classList.add('bg-yellow-500', 'hover:bg-yellow-600');
+                unlockIcon.classList.add('hidden');
+                lockIcon.classList.remove('hidden');
+            }
+        }
+        function updateUserMessageInputLock() {
+            let lockNotice = document.getElementById('lock-notice');
+            if (isCurrentChatLocked) {
+                messageInput.disabled = true;
+                sendMessageButton.disabled = true;
+                messageInput.placeholder = 'Cuộc trò chuyện này đã bị khoá.';
+                if (!lockNotice) {
+                    lockNotice = document.createElement('p');
+                    lockNotice.id = 'lock-notice';
+                    lockNotice.className = 'text-center text-xs text-red-600 pb-2';
+                    messageFooter.prepend(lockNotice);
+                }
+                lockNotice.textContent = 'Quản trị viên đã khoá cuộc trò chuyện này.';
+            } else {
+                messageInput.disabled = false;
+                sendMessageButton.disabled = false;
+                messageInput.placeholder = 'Nhập câu hỏi của bạn...';
+                if (lockNotice) lockNotice.remove();
+            }
+        }
+        document.addEventListener('visibilitychange', () => {
+            if (!document.hidden) {
+                document.title = originalTitle;
+                updateFavicon(false);
+            }
+        });
+
+        window.addEventListener('offline', () => {
+            showToastNotification({ title: "Mất kết nối", text: "Bạn đang ngoại tuyến. Vui lòng kiểm tra kết nối mạng của bạn." }, 'error');
+            messageInput.disabled = true;
+            sendMessageButton.disabled = true;
+        });
+
+        window.addEventListener('online', () => {
+            showToastNotification({ title: "Đã kết nối lại", text: "Kết nối mạng đã được khôi phục." }, 'success');
+            if (!isCurrentChatLocked && !document.getElementById('end-notice')) {
+                messageInput.disabled = false;
+                sendMessageButton.disabled = false;
+            }
+        });
+
+        // CHỈNH SỬA: Lấy cả email khi khởi tạo
+        function autoInitialize() {
+            const adminToken = localStorage.getItem('adminToken');
+            displayName = localStorage.getItem('chatDisplayName');
+            adminDisplayName = localStorage.getItem('adminDisplayName'); 
+            adminEmail = localStorage.getItem('adminEmail'); // Lấy email
+            currentUserId = localStorage.getItem('chatUserId');
+
+            if (displayName) displayNameInput.value = displayName;
+
+            if (adminToken) {
+                isAdmin = true;
+                initializeSocketConnection();
+                showScreen(chatInterface);
+            } else if (currentUserId) {
+                isAdmin = false;
+                initializeSocketConnection();
+                showScreen(chatInterface);
+            } else {
+                showScreen(welcomeScreen);
+            }
+        }
+        autoInitialize();
+
+        window.addEventListener('beforeinstallprompt', (e) => {
+            e.preventDefault();
+            deferredInstallPrompt = e;
+            installPromptContainer.classList.remove('hidden');
+        });
+
+        installButton.addEventListener('click', async () => {
+            if (deferredInstallPrompt) {
+                installPromptContainer.classList.add('hidden');
+                deferredInstallPrompt.prompt();
+                const { outcome } = await deferredInstallPrompt.userChoice;
+                deferredInstallPrompt = null;
+                if (outcome === 'accepted') {
+                    showToastNotification({ title: "Cài đặt thành công", text: "Ứng dụng đã được thêm vào màn hình chính!" }, 'success');
+                } else {
+                    showToastNotification({ title: "Đã huỷ cài đặt", text: "Bạn đã huỷ việc cài đặt ứng dụng." }, 'info');
+                }
+            }
+        });
+
+        closeInstallPrompt.addEventListener('click', () => {
+            installPromptContainer.classList.add('hidden');
+            deferredInstallPrompt = null;
+        });
+
+        window.addEventListener('appinstalled', () => {
+            installPromptContainer.classList.add('hidden');
+            deferredInstallPrompt = null;
+            showToastNotification({ title: "Đã cài đặt!", text: "Ứng dụng Chat đã được cài đặt thành công." }, 'success');
+        });
+
+        if ('serviceWorker' in navigator) {
+            window.addEventListener('load', () => {
+                navigator.serviceWorker.register('/service-worker.js')
+                    .then(registration => {
+                        console.log('ServiceWorker registration successful with scope: ', registration.scope);
+                    })
+                    .catch(err => {
+                        console.log('ServiceWorker registration failed: ', err);
+                    });
+            });
+        }
+    </script>
+</body>
+</html>
