@@ -212,7 +212,10 @@ io.on('connection', (socket) => {
               body: `Người dùng "${displayName}" đã bắt đầu một cuộc trò chuyện.`,
               url: `/?roomId=${userId}`
           });
-          sendNotificationToAllAdmins(payload);
+
+          // Vô hiệu hóa dòng này để không gửi thông báo khi có người dùng mới
+          //sendNotificationToAllAdmins(payload);
+        
           const rooms = await ChatRoom.find().sort({ timestamp: -1 });
           const adminRoomInfo = { _id: ADMIN_ONLY_ROOM_ID, displayName: '⭐️ Phòng chat Quản trị viên', lastMessage: 'Nơi các quản trị viên trao đổi nội bộ...', timestamp: new Date(), isSpecial: true };
           io.to('admin_room').emit('chatList', [adminRoomInfo, ...rooms]);
@@ -343,3 +346,4 @@ io.on('connection', (socket) => {
 server.listen(PORT, () => {
   console.log(`Server is running on port ${PORT}`);
 });
+
