@@ -241,7 +241,7 @@
 		let isInitializing = true; 
         
         // --- TONE.JS INITIALIZATION ---
-        let notificationSound; // Chỉ khai báo, chưa khởi tạo
+        const notificationSynth = new Tone.Synth().toDestination();
 
 
         // --- UTILITY FUNCTIONS ---
@@ -397,18 +397,17 @@
             }
         }
 
-        function playNewMessageSound() {
-		    // --- THÊM DÒNG KIỂM TRA NÀY ---
-		    if (isInitializing) return; // Nếu đang khởi tạo, không làm gì cả
-			
-			try {
-                if (Tone.context.state === 'running') {
-                    notificationSynth.triggerAttackRelease("C5", "8n");
-                }
-            } catch (e) {
-                console.error("Could not play notification sound:", e);
-            }
-        }
+		function playNewMessageSound() {
+		    // Chỉ phát âm thanh nếu người dùng đã tương tác với trang (context đang 'running')
+		    if (Tone.context.state === 'running') {
+		        try {
+		            // Sử dụng đối tượng synth đã được tạo sẵn từ đầu
+		            notificationSynth.triggerAttackRelease("C5", "8n");
+		        } catch (e) {
+		            console.error("Could not play notification sound:", e);
+		        }
+		    }
+		}
 
         function showScreen(screen) {
             [welcomeScreen, loginScreen, chatInterface].forEach(s => s.classList.add('hidden'));
@@ -460,20 +459,10 @@
         }
 
         startChatButton.addEventListener('click', async () => {
-			try {
-				// Bước 1: Tải script Tone.js sau khi click
-				await loadScript("https://cdnjs.cloudflare.com/ajax/libs/tone/14.7.77/Tone.js");
-
-				// Bước 2: Khởi động AudioContext (giữ nguyên như cũ)
-				if (!notificationSound) { // Chỉ khởi tạo lần đầu
-					await Tone.start();
-					notificationSound = new Tone.Synth().toDestination();
-					console.log('Hệ thống âm thanh đã sẵn sàng!');
-				}
-			} catch (e) {
-				console.error("Không thể tải hoặc khởi động thư viện âm thanh: ", e);
-				// Không cần làm người dùng hoảng sợ, chỉ cần log lỗi
-			}
+			// Dòng này rất quan trọng, nó xin phép trình duyệt để phát âm thanh
+		    if (Tone.context.state !== 'running') {
+		        await Tone.start();
+		    }
 			
             displayName = displayNameInput.value.trim() || 'Sư Huynh Vô Danh';
             localStorage.setItem('chatDisplayName', displayName);
@@ -1034,4 +1023,5 @@
 	<div class="hidden bg-orange-500 hover:bg-orange-700"></div>
 </body>
 </html>
+
 
