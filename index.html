@@ -239,6 +239,7 @@
         const originalFaviconHref = favicon.href;
         let confirmActionCallback = null;
         let deferredInstallPrompt = null;
+		let backButtonPressedOnce = false;
         
         // --- TONE.JS INITIALIZATION ---
         const notificationSynth = new Tone.Synth().toDestination();
@@ -703,43 +704,48 @@
                 rooms.forEach(room => renderChatRoomItem(room));
             }
         }
-        function renderChatRoomItem(room) {
-            const item = document.createElement('div');
-            item.className = `p-4 border-b border-gray-200 cursor-pointer hover:bg-[#f5f1e9] transition ${room._id === currentRoomId ? 'bg-[#e6dacb]' : ''}`;
-            if(room.isClosed) item.classList.add('opacity-60');
-            if(room.isSpecial) item.classList.add('bg-yellow-50'); 
-            item.dataset.roomId = room._id;
-            const lastMessageTime = room.timestamp ? new Date(room.timestamp).toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' }) : '';
-            item.innerHTML = `
-                <div class="flex justify-between items-center">
-                    <p class="font-bold text-sm truncate text-[#6B4F4F]">${room.displayName || 'Sư huynh ẩn danh'}</p>
-                    <p class="text-xs text-gray-500">${lastMessageTime}</p>
-                </div>
-                <div class="flex justify-between items-start mt-1">
-                    <p class="text-sm text-gray-600 truncate pr-2">${room.lastMessage || '...'}</p>
-                    <div class="flex items-center space-x-2 flex-shrink-0">
-                       <span class="lock-icon-container">
-                           ${!room.isSpecial && room.isClosed ? `<svg class="w-4 h-4 text-gray-500" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M10 1a4.5 4.5 0 00-4.5 4.5V9H5a2 2 0 00-2 2v6a2 2 0 002 2h10a2 2 0 002-2v-6a2 2 0 00-2-2h-.5V5.5A4.5 4.5 0 0010 1zm3 8V5.5a3 3 0 10-6 0V9h6z" clip-rule="evenodd" /></svg>` : ''}
-                       </span>
-                       ${!room.isSpecial && room.hasUnreadAdmin ? '<span class="w-3 h-3 bg-red-500 rounded-full"></span>' : ''}
-                    </div>
-                </div>
-            `;
-            item.addEventListener('click', () => {
-                currentRoomId = room._id;
-                isCurrentChatLocked = room.isClosed;
-                socket.emit('admin:viewRoom', room._id);
-                chatHeaderTitle.textContent = `${room.displayName || 'Sư huynh ẩn danh'}`;
-                messageFooter.classList.remove('hidden');
-                document.querySelectorAll('#chat-list-container > div').forEach(el => {
-                    el.classList.toggle('bg-[#e6dacb]', el.dataset.roomId === room._id);
-                });
-                if (window.innerWidth < 768) {
-                    showChatWindow();
-                }
-            });
-            chatListContainer.appendChild(item);
-        }
+		function renderChatRoomItem(room) {
+			const item = document.createElement('div');
+			item.className = `p-4 border-b border-gray-200 cursor-pointer hover:bg-[#f5f1e9] transition ${room._id === currentRoomId ? 'bg-[#e6dacb]' : ''}`;
+			if(room.isClosed) item.classList.add('opacity-60');
+			if(room.isSpecial) item.classList.add('bg-yellow-50'); 
+			item.dataset.roomId = room._id;
+			const lastMessageTime = room.timestamp ? new Date(room.timestamp).toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' }) : '';
+			item.innerHTML = `
+				<div class="flex justify-between items-center">
+					<p class="font-bold text-sm truncate text-[#6B4F4F]">${room.displayName || 'Sư huynh ẩn danh'}</p>
+					<p class="text-xs text-gray-500">${lastMessageTime}</p>
+				</div>
+				<div class="flex justify-between items-start mt-1">
+					<p class="text-sm text-gray-600 truncate pr-2">${room.lastMessage || '...'}</p>
+					<div class="flex items-center space-x-2 flex-shrink-0">
+					   <span class="lock-icon-container">
+						   ${!room.isSpecial && room.isClosed ? `<svg class="w-4 h-4 text-gray-500" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M10 1a4.5 4.5 0 00-4.5 4.5V9H5a2 2 0 00-2 2v6a2 2 0 002 2h10a2 2 0 002-2v-6a2 2 0 00-2-2h-.5V5.5A4.5 4.5 0 0010 1zm3 8V5.5a3 3 0 10-6 0V9h6z" clip-rule="evenodd" /></svg>` : ''}
+					   </span>
+					   ${!room.isSpecial && room.hasUnreadAdmin ? '<span class="w-3 h-3 bg-red-500 rounded-full"></span>' : ''}
+					</div>
+				</div>
+			`;
+			item.addEventListener('click', () => {
+				currentRoomId = room._id;
+				isCurrentChatLocked = room.isClosed;
+				socket.emit('admin:viewRoom', room._id);
+				chatHeaderTitle.textContent = `${room.displayName || 'Sư huynh ẩn danh'}`;
+				messageFooter.classList.remove('hidden');
+				document.querySelectorAll('#chat-list-container > div').forEach(el => {
+					el.classList.toggle('bg-[#e6dacb]', el.dataset.roomId === room._id);
+				});
+				
+				// --- THÊM DÒNG NÀY ĐỂ XỬ LÝ NÚT BACK ---
+				history.pushState({ view: 'chat', roomId: room._id }, '', `#${room._id}`);
+				// ------------------------------------
+
+				if (window.innerWidth < 768) {
+					showChatWindow();
+				}
+			});
+			chatListContainer.appendChild(item);
+		}
         function renderMessages(messages) {
             messagesDiv.innerHTML = '';
             if (messages.length === 0) {
@@ -995,10 +1001,43 @@
                     });
             });
         }
+		
+		// --- XỬ LÝ NÚT BACK CỦA ĐIỆN THOẠI ---
+		window.addEventListener('popstate', (event) => {
+			// Chỉ xử lý khi người dùng là admin và đang ở màn hình mobile
+			if (isAdmin && window.innerWidth < 768) {
+				const isChatWindowVisible = !chatWindowPanel.classList.contains('hidden');
+				// Nếu đang xem cửa sổ chat, bấm Back sẽ quay lại danh sách
+				if (isChatWindowVisible) {
+					showChatList(); // Quay lại danh sách chat
+					return; // Dừng xử lý tại đây
+				}
+			}
+
+			// Xử lý nhấn Back 2 lần để thoát
+			if (backButtonPressedOnce) {
+				window.close(); // Lần nhấn thứ 2, cho phép thoát
+				return;
+			}
+
+			// Đây là lần nhấn đầu tiên
+			backButtonPressedOnce = true;
+			showToastNotification({ title: 'Thoát ứng dụng', text: 'Nhấn Back lần nữa để thoát.' });
+
+			// Đặt lại cờ sau 2 giây
+			setTimeout(() => {
+				backButtonPressedOnce = false;
+			}, 2000);
+
+			// Ngăn chặn việc thoát ứng dụng ngay lần đầu bằng cách đẩy lại một trạng thái giả
+			history.pushState(null, '', window.location.pathname);
+		});
+		// ------------------------------------
     </script>
 	<div class="hidden bg-orange-500 hover:bg-orange-700"></div>
 </body>
 </html>
+
 
 
 
