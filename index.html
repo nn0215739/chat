@@ -6,7 +6,6 @@
     <title>HỖ TRỢ TRỰC TUYẾN</title>
     <link id="favicon" rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Ctext y='.9em' font-size='90'%3E💬%3C/text%3E%3C/svg%3E">
     <script src="https://cdn.tailwindcss.com"></script>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/tone/14.7.77/Tone.js"></script>
     <script src="https://cdn.socket.io/4.6.1/socket.io.min.js"></script>
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -225,6 +224,19 @@
 
 
         // --- UTILITY FUNCTIONS ---
+		function loadScript(src) {
+			return new Promise((resolve, reject) => {
+				if (document.querySelector(`script[src="${src}"]`)) {
+					return resolve(); // Script already loaded
+				}
+				const script = document.createElement('script');
+				script.src = src;
+				script.onload = () => resolve();
+				script.onerror = () => reject(new Error(`Script load error for ${src}`));
+				document.head.appendChild(script);
+			});
+		}
+		
         function showConfirmationModal(action) {
             confirmationModal.classList.remove('hidden');
             confirmAction = action;
@@ -411,17 +423,20 @@
             setupSocketListeners();
         }
 
-        startChatButton.addEventListener('click', async () => {
-			// === BẮT ĐẦU PHẦN SỬA LỖI ===
-			// Khởi động AudioContext sau khi người dùng nhấp chuột
-			if (!notificationSound) { // Chỉ khởi tạo lần đầu
-				try {
+		startChatButton.addEventListener('click', async () => {
+			try {
+				// Bước 1: Tải script Tone.js sau khi click
+				await loadScript("https://cdnjs.cloudflare.com/ajax/libs/tone/14.7.77/Tone.js");
+
+				// Bước 2: Khởi động AudioContext (giữ nguyên như cũ)
+				if (!notificationSound) { // Chỉ khởi tạo lần đầu
 					await Tone.start();
 					notificationSound = new Tone.Synth().toDestination();
 					console.log('Hệ thống âm thanh đã sẵn sàng!');
-				} catch (e) {
-					console.error("Không thể khởi động âm thanh: ", e);
 				}
+			} catch (e) {
+				console.error("Không thể tải hoặc khởi động thư viện âm thanh: ", e);
+				// Không cần làm người dùng hoảng sợ, chỉ cần log lỗi
 			}
 			// === KẾT THÚC PHẦN SỬA LỖI ===
 			
