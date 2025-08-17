@@ -92,9 +92,14 @@
              <div class="w-full max-w-sm p-8 bg-white/80 backdrop-blur-sm rounded-2xl shadow-2xl border border-gray-200">
                 <div class="text-center mb-8"><h1 class="text-3xl font-bold text-[#6B4F4F] mt-4">Đăng Nhập Quản Trị</h1><p class="text-gray-500 mt-2">Chỉ dành cho quản trị viên.</p></div>
                 <form id="login-form">
-                    <div class="mb-4"><label for="email" class="block text-sm font-medium text-gray-700 mb-1">Email</label><input type="email" id="email" name="email" required class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-[#c19a6b] focus:border-[#c19a6b] transition" placeholder="admin@example.com"></div>
-                    <div class="mb-6"><label for="password" class="block text-sm font-medium text-gray-700 mb-1">Mật khẩu</label><input type="password" id="password" name="password" required class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-[#c19a6b] focus:border-[#c19a6b] transition" placeholder="••••••••"></div>
-                    <button type="submit" class="w-full bg-[#c19a6b] text-white font-bold py-3 rounded-lg hover:bg-[#a9885a] transition-transform transform hover:scale-105">Đăng Nhập</button>
+					<div class="mb-4">
+						<label for="email" ...>Email</label>
+						<input type="email" id="email" name="email" required autocomplete="email" class="..." placeholder="admin@example.com">
+					</div>
+					<div class="mb-6">
+						<label for="password" ...>Mật khẩu</label>
+						<input type="password" id="password" name="password" required autocomplete="current-password" class="..." placeholder="••••••••">
+					</div>                    <button type="submit" class="w-full bg-[#c19a6b] text-white font-bold py-3 rounded-lg hover:bg-[#a9885a] transition-transform transform hover:scale-105">Đăng Nhập</button>
                     <p id="login-error" class="text-red-500 text-sm mt-4 text-center"></p>
                     <button type="button" id="back-to-welcome-button" class="w-full mt-4 text-sm text-gray-600 hover:text-[#c19a6b]">Quay lại</button>
                 </form>
