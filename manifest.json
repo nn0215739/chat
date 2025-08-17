@@ -1,5 +1,5 @@
     {
-      "name": "Hỗ Trợ Trực Tuyến",
+      "name": "Chat Hỗ Trợ",
       "short_name": "Chat Hỗ Trợ",
       "description": "Ứng dụng chat hỗ trợ trực tuyến của Pháp Môn Tâm Linh",
       "start_url": "/",
@@ -20,3 +20,4 @@
       ]
     }
     
+
