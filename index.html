@@ -262,7 +262,8 @@
             confirmationMessage.textContent = message;
             confirmActionButton.textContent = confirmText;
             
-			confirmActionButton.className = `px-4 py-2 text-white rounded-lg ${confirmClass} hover:${confirmClass.replace('600', '700')}`;
+			const hoverClass = `hover:${confirmClass.replace('500', '700').replace('600', '700')}`;
+			confirmActionButton.className = `px-4 py-2 text-white rounded-lg ${confirmClass} ${hoverClass}`;
             confirmActionCallback = onConfirm;
             confirmationModal.classList.remove('hidden');
         }
@@ -1019,5 +1020,6 @@
             });
         }
     </script>
+	<div class="hidden bg-orange-500 hover:bg-orange-700"></div>
 </body>
 </html>
