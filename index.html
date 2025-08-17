@@ -239,7 +239,6 @@
         const originalFaviconHref = favicon.href;
         let confirmActionCallback = null;
         let deferredInstallPrompt = null;
-		let isInitializing = true; 
         
         // --- TONE.JS INITIALIZATION ---
         const notificationSynth = new Tone.Synth().toDestination();
@@ -384,10 +383,8 @@
         }
 
 		function playNewMessageSound() {
-		    // Chỉ phát âm thanh nếu người dùng đã tương tác với trang (context đang 'running')
 		    if (Tone.context.state === 'running') {
 		        try {
-		            // Sử dụng đối tượng synth đã được tạo sẵn từ đầu
 		            notificationSynth.triggerAttackRelease("C5", "8n");
 		        } catch (e) {
 		            console.error("Could not play notification sound:", e);
@@ -555,13 +552,6 @@
 
         function setupSocketListeners() {
             socket.on('connect', () => {
-				// --- THÊM ĐOẠN CODE NÀY VÀO ĐÂY ---
-		        isInitializing = true; // Bật cờ khi kết nối
-		        setTimeout(() => {
-		            isInitializing = false; // Tắt cờ sau 3 giây
-		        }, 3000);
-		        // --- KẾT THÚC ĐOẠN CODE THÊM ---
-				
                 const token = localStorage.getItem('adminToken');
                 if (token && isAdmin) {
                     setupAdminView();
@@ -1009,6 +999,7 @@
 	<div class="hidden bg-orange-500 hover:bg-orange-700"></div>
 </body>
 </html>
+
 
 
 
