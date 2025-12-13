@@ -379,6 +379,11 @@
         function setupUserView() {
             document.getElementById('chat-list-panel').classList.add('hidden');
             document.getElementById('online-admins-panel').classList.add('hidden');
+			// --- THÊM 2 DÒNG NÀY ĐỂ HIỆN KHUNG CHAT TRÊN ĐIỆN THOẠI ---
+            const chatWindow = document.getElementById('chat-window-panel');
+            chatWindow.classList.remove('hidden');
+            chatWindow.classList.add('flex');
+            // ---------------------------------------------------------
             document.getElementById('chat-header-title').textContent = displayName;
             currentRoomId = currentUserId;
             socket.emit('user:join', { userId: currentUserId, displayName: displayName });
@@ -443,4 +448,5 @@
     </script>
 </body>
 </html>
+
 
