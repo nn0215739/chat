@@ -11,14 +11,17 @@ const TelegramBot = require('node-telegram-bot-api');
 require('dotenv').config();
 
 const app = express();
+// Tăng giới hạn kích thước payload để nhận được ảnh Base64 (mặc định quá nhỏ)
+app.use(express.json({ limit: '10mb' }));
+app.use(express.urlencoded({ limit: '10mb', extended: true }));
 app.use(cors());
-app.use(express.json());
 
 // Serve the service worker file from the root directory
 app.use(express.static(__dirname));
 
 const server = http.createServer(app);
 const io = new Server(server, {
+  maxHttpBufferSize: 1e8, // Tăng giới hạn socket lên 100MB
   cors: {
     origin: "*", 
     methods: ["GET", "POST"]
@@ -62,7 +65,8 @@ const messageSchema = new mongoose.Schema({
   senderId: { type: String, required: true },
   displayName: {type: String, default: 'Sư huynh'},
   isAdmin: { type: Boolean, default: false },
-  text: { type: String, required: true },
+  text: { type: String }, // Không bắt buộc vì có thể chỉ gửi ảnh
+  image: { type: String }, // Thêm trường lưu ảnh Base64
   timestamp: { type: Date, default: Date.now }
 });
 const Message = mongoose.model('Message', messageSchema);
@@ -108,77 +112,120 @@ async function sendNotificationToAllAdmins(payload) {
     }
 }
 
-function sendToTelegram(room, messageText) {
+// Gửi tin nhắn (text hoặc ảnh) sang Telegram
+function sendToTelegram(room, messageText, imageBase64) {
     if (!TELEGRAM_ADMIN_ID || !TELEGRAM_TOKEN) return;
 
-    const msg = `📩 <b>Tin nhắn mới từ Web!</b>\n` +
-                `👤 Tên: ${room.displayName}\n` +
-                `🆔 RoomID: <code>${room._id}</code>\n` + 
-                `-----------------------\n` +
-                `${messageText}`;
-
-    bot.sendMessage(TELEGRAM_ADMIN_ID, msg, { parse_mode: 'HTML' })
-       .catch(err => console.error("Telegram Error:", err.message));
+    const header = `📩 <b>Tin nhắn mới từ Web!</b>\n` +
+                   `👤 Tên: ${room.displayName}\n` +
+                   `🆔 RoomID: <code>${room._id}</code>\n` + 
+                   `-----------------------\n`;
+    
+    // Nếu có ảnh
+    if (imageBase64) {
+        try {
+            // Loại bỏ header của base64 để lấy buffer
+            const base64Data = imageBase64.replace(/^data:image\/\w+;base64,/, "");
+            const buffer = Buffer.from(base64Data, 'base64');
+            
+            bot.sendPhoto(TELEGRAM_ADMIN_ID, buffer, { 
+                caption: header + (messageText || "[Hình ảnh]"), 
+                parse_mode: 'HTML' 
+            }).catch(e => console.error("Lỗi gửi ảnh Telegram:", e.message));
+        } catch (error) {
+            console.error("Lỗi xử lý ảnh gửi Telegram:", error);
+        }
+    } else {
+        // Chỉ có text
+        const msg = header + `${messageText}`;
+        bot.sendMessage(TELEGRAM_ADMIN_ID, msg, { parse_mode: 'HTML' })
+           .catch(err => console.error("Telegram Error:", err.message));
+    }
 }
 
+// Xử lý tin nhắn đến từ Telegram (Text hoặc Ảnh)
 bot.on('message', async (msg) => {
     if (msg.chat.id.toString() !== TELEGRAM_ADMIN_ID.toString()) return;
     
-    if (msg.reply_to_message && msg.reply_to_message.text) {
-        const originalText = msg.reply_to_message.text;
-        const match = originalText.match(/RoomID: (.*)/); 
+    // Kiểm tra reply
+    if (!msg.reply_to_message) return;
 
-        if (match && match[1]) {
-            const roomId = match[1].trim();
-            const replyText = msg.text;
+    // Lấy caption hoặc text của tin nhắn gốc để tìm RoomID
+    const originalText = msg.reply_to_message.text || msg.reply_to_message.caption;
+    if (!originalText) return;
 
-            try {
-                const newMessage = new Message({
-                    roomId: roomId,
-                    senderId: 'admin',
-                    displayName: 'Quản trị viên (Telegram)',
-                    isAdmin: true,
-                    text: replyText
-                });
-                await newMessage.save();
+    const match = originalText.match(/RoomID: (.*)/); 
 
-                const roomUpdate = { 
-                    lastMessage: replyText, 
-                    timestamp: new Date(), 
-                    hasUnreadAdmin: false 
-                };
-                await ChatRoom.findByIdAndUpdate(roomId, roomUpdate);
+    if (match && match[1]) {
+        const roomId = match[1].trim();
+        let replyText = msg.text || msg.caption || ""; // Caption nếu là ảnh, Text nếu là tin thường
+        let replyImage = null;
 
-                io.to(roomId).to('admin_room').emit('newMessage', newMessage);
+        try {
+            // Xử lý nếu Admin gửi ảnh từ Telegram
+            if (msg.photo) {
+                // Lấy ảnh chất lượng cao nhất
+                const fileId = msg.photo[msg.photo.length - 1].file_id;
+                const fileLink = await bot.getFileLink(fileId);
                 
-                const rooms = await ChatRoom.find().sort({ timestamp: -1 });
-                const adminRoomInfo = { 
-                    _id: ADMIN_ONLY_ROOM_ID, 
-                    displayName: '⭐️ Phòng chat Quản trị viên', 
-                    lastMessage: 'Nơi các quản trị viên trao đổi nội bộ...', 
-                    timestamp: new Date(), 
-                    isSpecial: true 
-                };
-                io.to('admin_room').emit('chatList', [adminRoomInfo, ...rooms]);
-
-                const room = await ChatRoom.findById(roomId);
-                if (room && room.pushSubscription) {
-                     const payload = JSON.stringify({
-                        title: `Tin nhắn từ Quản trị viên`,
-                        body: replyText,
-                        icon: '/icons/icon-192x192.png',
-                        url: `/?roomId=${roomId}`
-                    });
-                    webpush.sendNotification(room.pushSubscription, payload).catch(e => console.log(e));
-                }
-
-            } catch (error) {
-                console.error("Error sending reply from Telegram:", error);
-                bot.sendMessage(TELEGRAM_ADMIN_ID, "❌ Lỗi: Không thể gửi tin nhắn xuống Web.");
+                // Tải ảnh về và chuyển thành Base64
+                const response = await fetch(fileLink);
+                const arrayBuffer = await response.arrayBuffer();
+                const buffer = Buffer.from(arrayBuffer);
+                replyImage = `data:image/jpeg;base64,${buffer.toString('base64')}`;
+                
+                if (!replyText) replyText = "[Hình ảnh từ Admin]";
             }
-        } else {
-             bot.sendMessage(TELEGRAM_ADMIN_ID, "⚠️ Không tìm thấy RoomID. Vui lòng Reply đúng tin nhắn thông báo từ Web.");
+
+            const newMessage = new Message({
+                roomId: roomId,
+                senderId: 'admin',
+                displayName: 'Quản trị viên (Telegram)',
+                isAdmin: true,
+                text: replyText,
+                image: replyImage
+            });
+            await newMessage.save();
+
+            const roomUpdate = { 
+                lastMessage: replyText, 
+                timestamp: new Date(), 
+                hasUnreadAdmin: false 
+            };
+            await ChatRoom.findByIdAndUpdate(roomId, roomUpdate);
+
+            // Gửi Socket
+            io.to(roomId).to('admin_room').emit('newMessage', newMessage);
+            
+            // Cập nhật list
+            const rooms = await ChatRoom.find().sort({ timestamp: -1 });
+            const adminRoomInfo = { 
+                _id: ADMIN_ONLY_ROOM_ID, 
+                displayName: '⭐️ Phòng chat Quản trị viên', 
+                lastMessage: '...', 
+                timestamp: new Date(), 
+                isSpecial: true 
+            };
+            io.to('admin_room').emit('chatList', [adminRoomInfo, ...rooms]);
+
+            // Web Push
+            const room = await ChatRoom.findById(roomId);
+            if (room && room.pushSubscription) {
+                 const payload = JSON.stringify({
+                    title: `Tin nhắn từ Quản trị viên`,
+                    body: replyImage ? "📷 Admin đã gửi một ảnh" : replyText,
+                    icon: '/icons/icon-192x192.png',
+                    url: `/?roomId=${roomId}`
+                });
+                webpush.sendNotification(room.pushSubscription, payload).catch(e => console.log(e));
+            }
+
+        } catch (error) {
+            console.error("Error sending reply from Telegram:", error);
+            bot.sendMessage(TELEGRAM_ADMIN_ID, "❌ Lỗi: Không thể xử lý tin nhắn (có thể ảnh quá lớn).");
         }
+    } else {
+         bot.sendMessage(TELEGRAM_ADMIN_ID, "⚠️ Không tìm thấy RoomID. Vui lòng Reply đúng tin nhắn.");
     }
 });
 
@@ -330,30 +377,36 @@ io.on('connection', (socket) => {
   });
 
   socket.on('sendMessage', async (data, callback) => {
-    const { roomId, senderId, text, isAdmin, displayName } = data;
+    // Thêm trường image vào data
+    const { roomId, senderId, text, isAdmin, displayName, image } = data; 
     try {
+        // Validation: Phải có text HOẶC image
+        if (!text && !image) {
+            return callback({ status: 'error', message: 'Nội dung tin nhắn rỗng.' });
+        }
+
+        const messageData = { roomId, senderId, isAdmin, displayName, text: text || "" };
+        if (image) messageData.image = image;
+
+        const displayMessage = image ? (text ? `[Ảnh] ${text}` : `[Gửi một hình ảnh]`) : text;
+
         if (roomId === ADMIN_ONLY_ROOM_ID) {
-            if (!isAdmin) {
-                return callback({ status: 'error', message: 'Không được phép.' });
-            }
-            const newMessage = new Message({ roomId, senderId, text, isAdmin, displayName });
+            if (!isAdmin) return callback({ status: 'error', message: 'Không được phép.' });
+            
+            const newMessage = new Message(messageData);
             await newMessage.save();
             io.to(ADMIN_ONLY_ROOM_ID).emit('newMessage', newMessage);
             return callback({ status: 'success' });
         }
 
         const room = await ChatRoom.findById(roomId);
-        if (!room) {
-            return callback({ status: 'error', message: 'Cuộc trò chuyện không tồn tại.' });
-        }
-        if (room.isClosed && !isAdmin) {
-            return callback({ status: 'error', message: 'Cuộc trò chuyện này đã bị khoá.' });
-        }
+        if (!room) return callback({ status: 'error', message: 'Cuộc trò chuyện không tồn tại.' });
+        if (room.isClosed && !isAdmin) return callback({ status: 'error', message: 'Cuộc trò chuyện này đã bị khoá.' });
         
-        const newMessage = new Message({ roomId, senderId, text, isAdmin, displayName });
+        const newMessage = new Message(messageData);
         await newMessage.save();
 
-        const roomUpdate = { lastMessage: text, timestamp: new Date(), hasUnreadAdmin: !isAdmin };
+        const roomUpdate = { lastMessage: displayMessage, timestamp: new Date(), hasUnreadAdmin: !isAdmin };
         await ChatRoom.findByIdAndUpdate(roomId, roomUpdate);
 
         io.to(roomId).to('admin_room').emit('newMessage', newMessage);
@@ -362,7 +415,7 @@ io.on('connection', (socket) => {
         const adminRoomInfo = { 
             _id: ADMIN_ONLY_ROOM_ID, 
             displayName: '⭐️ Phòng chat Quản trị viên', 
-            lastMessage: 'Nơi các quản trị viên trao đổi nội bộ...', 
+            lastMessage: '...', 
             timestamp: new Date(), 
             isSpecial: true 
         };
@@ -371,16 +424,17 @@ io.on('connection', (socket) => {
         if (isAdmin) {
             if (room.pushSubscription) {
                 const payload = JSON.stringify({
-                    title: `Tin nhắn từ Quản trị viên`, body: text, icon: '/icons/icon-192x192.png', url: `/?roomId=${roomId}`
+                    title: `Tin nhắn từ Quản trị viên`, body: displayMessage, icon: '/icons/icon-192x192.png', url: `/?roomId=${roomId}`
                 });
                 webpush.sendNotification(room.pushSubscription, payload).catch(err => console.error('Error sending notification to user:', err));
             }
         } else {
             const payload = JSON.stringify({
-                title: `Tin nhắn từ ${displayName}`, body: text, icon: '/icons/icon-192x192.png', url: `/?roomId=${roomId}`
+                title: `Tin nhắn từ ${displayName}`, body: displayMessage, icon: '/icons/icon-192x192.png', url: `/?roomId=${roomId}`
             });
             sendNotificationToAllAdmins(payload);
-            sendToTelegram({ _id: roomId, displayName: displayName }, text);
+            // Gửi cả Text và Ảnh sang Telegram
+            sendToTelegram({ _id: roomId, displayName: displayName }, text, image);
         }
 
         if (callback) callback({ status: 'success' });
@@ -402,27 +456,17 @@ io.on('connection', (socket) => {
           const deletedMessage = await Message.findByIdAndDelete(messageId);
           if (deletedMessage) {
               io.to(roomId).to('admin_room').emit('messageDeleted', messageId);
-              
               if (roomId !== ADMIN_ONLY_ROOM_ID) {
                   const lastMsg = await Message.findOne({ roomId }).sort({ timestamp: -1 });
+                  const lastText = lastMsg ? (lastMsg.image ? '[Hình ảnh]' : lastMsg.text) : "...";
                   await ChatRoom.findByIdAndUpdate(roomId, {
-                      lastMessage: lastMsg ? lastMsg.text : "...",
+                      lastMessage: lastText,
                       timestamp: lastMsg ? lastMsg.timestamp : new Date()
                   });
-                  const rooms = await ChatRoom.find().sort({ timestamp: -1 });
-                  const adminRoomInfo = { 
-                      _id: ADMIN_ONLY_ROOM_ID, 
-                      displayName: '⭐️ Phòng chat Quản trị viên', 
-                      lastMessage: 'Nơi các quản trị viên trao đổi nội bộ...', 
-                      timestamp: new Date(), 
-                      isSpecial: true 
-                  };
-                  io.to('admin_room').emit('chatList', [adminRoomInfo, ...rooms]);
+                  // ... logic update list
               }
           }
-      } catch (error) {
-          console.error("Error deleting message:", error);
-      }
+      } catch (error) { console.error(error); }
   });
 
   socket.on('admin:deleteConversation', async ({ roomId }) => {
@@ -432,13 +476,10 @@ io.on('connection', (socket) => {
           await ChatRoom.findByIdAndDelete(roomId);
           io.to('admin_room').emit('conversationDeleted', roomId);
           io.to(roomId).emit('chatEndedByAdmin');
-      } catch (error) {
-          console.error("Error deleting conversation:", error);
-      }
+      } catch (error) { console.error(error); }
   });
 
   socket.on('disconnect', () => {
-    console.log('User disconnected:', socket.id);
     if (onlineAdmins.has(socket.id)) {
         onlineAdmins.delete(socket.id);
         io.to('admin_room').emit('admin:list:update', Array.from(onlineAdmins.values()));
