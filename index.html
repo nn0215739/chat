@@ -324,19 +324,29 @@
         // --- INIT & EVENTS (Rút gọn) ---
         // Phần login, join room, render list... giữ nguyên logic cũ nhưng cập nhật biến DOM
         
-        document.getElementById('start-chat-button').addEventListener('click', async () => {
-            if (Tone.context.state !== 'running') await Tone.start();
-            displayName = document.getElementById('display-name-input').value.trim() || 'Sư Huynh Vô Danh';
-            localStorage.setItem('chatDisplayName', displayName);
-            if (!currentUserId) {
-                currentUserId = 'user_' + Date.now() + Math.random().toString(36).substring(2, 9);
-                localStorage.setItem('chatUserId', currentUserId);
-            }
-            isAdmin = false;
-            askPermissionAndSubscribe();
-            showScreen(chatInterface);
-            setupUserView();
-        });
+		document.getElementById('start-chat-button').addEventListener('click', async () => {
+		    // --- SỬA ĐOẠN NÀY ---
+		    try {
+		        if (typeof Tone !== 'undefined' && Tone.context.state !== 'running') {
+		            await Tone.start();
+		        }
+		    } catch (e) {
+		        console.warn("Lỗi khởi động âm thanh:", e);
+		        // Không làm gì cả, cứ cho chạy tiếp để người dùng còn chat được
+		    }
+		    // --------------------
+		
+		    displayName = document.getElementById('display-name-input').value.trim() || 'Sư Huynh Vô Danh';
+		    localStorage.setItem('chatDisplayName', displayName);
+		    if (!currentUserId) {
+		        currentUserId = 'user_' + Date.now() + Math.random().toString(36).substring(2, 9);
+		        localStorage.setItem('chatUserId', currentUserId);
+		    }
+		    isAdmin = false;
+		    askPermissionAndSubscribe();
+		    showScreen(chatInterface);
+		    setupUserView();
+		});
 
         // Admin Login
         document.getElementById('admin-login-prompt-button').addEventListener('click', () => showScreen(loginScreen));
@@ -433,3 +443,4 @@
     </script>
 </body>
 </html>
+
