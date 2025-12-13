@@ -6,7 +6,6 @@ const cors = require('cors');
 const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
 const webpush = require('web-push');
-// --- THÊM: Import thư viện Telegram ---
 const TelegramBot = require('node-telegram-bot-api'); 
 
 require('dotenv').config();
@@ -34,15 +33,12 @@ const INITIAL_ADMIN_EMAIL = "admin@example.com";
 const ADMIN_DEFAULT_PASSWORD = "password123";
 const ADMIN_ONLY_ROOM_ID = 'admins_only_chat';
 
-// --- THÊM: CẤU HÌNH TELEGRAM ---
-// Hãy thay Token và Chat ID của bạn vào đây (hoặc dùng biến môi trường .env)
+// --- TELEGRAM CONFIG ---
 const TELEGRAM_TOKEN = process.env.TELEGRAM_TOKEN || "YOUR_TELEGRAM_BOT_TOKEN"; 
 const TELEGRAM_ADMIN_ID = process.env.TELEGRAM_ADMIN_ID || "YOUR_TELEGRAM_CHAT_ID";
 
-// Khởi tạo Bot Telegram (polling: true để lắng nghe tin nhắn đến)
 const bot = new TelegramBot(TELEGRAM_TOKEN, { polling: true });
 
-// VAPID keys should be stored in environment variables for security
 const VAPID_PUBLIC_KEY = process.env.VAPID_PUBLIC_KEY || "BLR3ESERJvSd663nWEkEVoQHkfIk6V0akO8_lVv8Tl4ATq3TNJc2wZQQUYajbRUN0rXreHPDA5As_OMOMN8e4Ms";
 const VAPID_PRIVATE_KEY = process.env.VAPID_PRIVATE_KEY || "qnW902sNFeZ2nrLZsoPAzipwIHWVpejp75hc_SgqyaY";
 
@@ -53,7 +49,7 @@ webpush.setVapidDetails(
 );
 
 // --- STATE MANAGEMENT ---
-const onlineAdmins = new Map(); // Theo dõi các quản trị viên đang online { socket.id -> { displayName, email } }
+const onlineAdmins = new Map();
 
 // --- DATABASE CONNECTION ---
 mongoose.connect(MONGO_URI)
@@ -72,7 +68,7 @@ const messageSchema = new mongoose.Schema({
 const Message = mongoose.model('Message', messageSchema);
 
 const chatRoomSchema = new mongoose.Schema({
-  _id: { type: String }, // Room ID (same as userId)
+  _id: { type: String },
   displayName: { type: String, default: 'Sư huynh Vô Danh' },
   lastMessage: { type: String },
   timestamp: { type: Date },
@@ -112,11 +108,9 @@ async function sendNotificationToAllAdmins(payload) {
     }
 }
 
-// --- THÊM: HÀM GỬI TIN NHẮN ĐẾN TELEGRAM ---
 function sendToTelegram(room, messageText) {
     if (!TELEGRAM_ADMIN_ID || !TELEGRAM_TOKEN) return;
 
-    // Format tin nhắn: Quan trọng nhất là dòng RoomID để lúc reply Bot biết trả lời ai
     const msg = `📩 <b>Tin nhắn mới từ Web!</b>\n` +
                 `👤 Tên: ${room.displayName}\n` +
                 `🆔 RoomID: <code>${room._id}</code>\n` + 
@@ -127,24 +121,18 @@ function sendToTelegram(room, messageText) {
        .catch(err => console.error("Telegram Error:", err.message));
 }
 
-// --- THÊM: LẮNG NGHE REPLY TỪ TELEGRAM ---
 bot.on('message', async (msg) => {
-    // Chỉ xử lý tin nhắn từ Admin đã cấu hình để bảo mật
     if (msg.chat.id.toString() !== TELEGRAM_ADMIN_ID.toString()) return;
     
-    // Kiểm tra xem có phải đang Reply tin nhắn của Bot không
     if (msg.reply_to_message && msg.reply_to_message.text) {
         const originalText = msg.reply_to_message.text;
-        
-        // Regex tìm ID phòng chat từ tin nhắn gốc (Dòng RoomID: user_...)
         const match = originalText.match(/RoomID: (.*)/); 
 
         if (match && match[1]) {
-            const roomId = match[1].trim(); // Lấy ID phòng
-            const replyText = msg.text; // Nội dung Admin trả lời
+            const roomId = match[1].trim();
+            const replyText = msg.text;
 
             try {
-                // 1. Lưu tin nhắn vào DB
                 const newMessage = new Message({
                     roomId: roomId,
                     senderId: 'admin',
@@ -154,7 +142,6 @@ bot.on('message', async (msg) => {
                 });
                 await newMessage.save();
 
-                // 2. Cập nhật phòng chat
                 const roomUpdate = { 
                     lastMessage: replyText, 
                     timestamp: new Date(), 
@@ -162,15 +149,18 @@ bot.on('message', async (msg) => {
                 };
                 await ChatRoom.findByIdAndUpdate(roomId, roomUpdate);
 
-                // 3. Gửi Socket xuống Web cho người dùng thấy ngay
                 io.to(roomId).to('admin_room').emit('newMessage', newMessage);
                 
-                // 4. Cập nhật danh sách chat cho Admin Web
                 const rooms = await ChatRoom.find().sort({ timestamp: -1 });
-                const adminRoomInfo = { _id: ADMIN_ONLY_ROOM_ID, displayName: '⭐️ Phòng chat Quản trị viên', lastMessage: '...', timestamp: new Date(), isSpecial: true };
+                const adminRoomInfo = { 
+                    _id: ADMIN_ONLY_ROOM_ID, 
+                    displayName: '⭐️ Phòng chat Quản trị viên', 
+                    lastMessage: 'Nơi các quản trị viên trao đổi nội bộ...', 
+                    timestamp: new Date(), 
+                    isSpecial: true 
+                };
                 io.to('admin_room').emit('chatList', [adminRoomInfo, ...rooms]);
 
-                // 5. Gửi Web Push Notification cho người dùng (Backup nếu họ tắt màn hình)
                 const room = await ChatRoom.findById(roomId);
                 if (room && room.pushSubscription) {
                      const payload = JSON.stringify({
@@ -187,12 +177,10 @@ bot.on('message', async (msg) => {
                 bot.sendMessage(TELEGRAM_ADMIN_ID, "❌ Lỗi: Không thể gửi tin nhắn xuống Web.");
             }
         } else {
-            // Nếu Reply nhầm tin nhắn không có ID
              bot.sendMessage(TELEGRAM_ADMIN_ID, "⚠️ Không tìm thấy RoomID. Vui lòng Reply đúng tin nhắn thông báo từ Web.");
         }
     }
 });
-
 
 // --- INITIAL ADMIN CREATION ---
 async function createInitialAdmin() {
@@ -307,7 +295,13 @@ io.on('connection', (socket) => {
           });
         
           const rooms = await ChatRoom.find().sort({ timestamp: -1 });
-          const adminRoomInfo = { _id: ADMIN_ONLY_ROOM_ID, displayName: '⭐️ Phòng chat Quản trị viên', lastMessage: 'Nơi các quản trị viên trao đổi nội bộ...', timestamp: new Date(), isSpecial: true };
+          const adminRoomInfo = { 
+              _id: ADMIN_ONLY_ROOM_ID, 
+              displayName: '⭐️ Phòng chat Quản trị viên', 
+              lastMessage: 'Nơi các quản trị viên trao đổi nội bộ...', 
+              timestamp: new Date(), 
+              isSpecial: true 
+          };
           io.to('admin_room').emit('chatList', [adminRoomInfo, ...rooms]);
       }
   });
@@ -323,7 +317,13 @@ io.on('connection', (socket) => {
           if (room) {
             socket.emit('roomDetails', { messages: await Message.find({ roomId }).sort({ timestamp: 1 }), isClosed: room.isClosed });
             const rooms = await ChatRoom.find().sort({ timestamp: -1 });
-            const adminRoomInfo = { _id: ADMIN_ONLY_ROOM_ID, displayName: '⭐️ Phòng chat Quản trị viên', lastMessage: 'Nơi các quản trị viên trao đổi nội bộ...', timestamp: new Date(), isSpecial: true };
+            const adminRoomInfo = { 
+                _id: ADMIN_ONLY_ROOM_ID, 
+                displayName: '⭐️ Phòng chat Quản trị viên', 
+                lastMessage: 'Nơi các quản trị viên trao đổi nội bộ...', 
+                timestamp: new Date(), 
+                isSpecial: true 
+            };
             io.to('admin_room').emit('chatList', [adminRoomInfo, ...rooms]);
           }
       }
@@ -359,7 +359,13 @@ io.on('connection', (socket) => {
         io.to(roomId).to('admin_room').emit('newMessage', newMessage);
         
         const rooms = await ChatRoom.find().sort({ timestamp: -1 });
-        const adminRoomInfo = { _id: ADMIN_ONLY_ROOM_ID, displayName: '⭐️ Phòng chat Quản trị viên', lastMessage: 'Nơi các quản trị viên trao đổi nội bộ...', timestamp: new Date(), isSpecial: true };
+        const adminRoomInfo = { 
+            _id: ADMIN_ONLY_ROOM_ID, 
+            displayName: '⭐️ Phòng chat Quản trị viên', 
+            lastMessage: 'Nơi các quản trị viên trao đổi nội bộ...', 
+            timestamp: new Date(), 
+            isSpecial: true 
+        };
         io.to('admin_room').emit('chatList', [adminRoomInfo, ...rooms]);
 
         if (isAdmin) {
@@ -370,15 +376,10 @@ io.on('connection', (socket) => {
                 webpush.sendNotification(room.pushSubscription, payload).catch(err => console.error('Error sending notification to user:', err));
             }
         } else {
-            // Trường hợp: USER gửi tin nhắn đến
-            
-            // 1. Gửi Web Push cho các Admin Web (như cũ)
             const payload = JSON.stringify({
                 title: `Tin nhắn từ ${displayName}`, body: text, icon: '/icons/icon-192x192.png', url: `/?roomId=${roomId}`
             });
             sendNotificationToAllAdmins(payload);
-
-            // 2. [THÊM] Gửi thông báo đến Telegram
             sendToTelegram({ _id: roomId, displayName: displayName }, text);
         }
 
@@ -409,7 +410,13 @@ io.on('connection', (socket) => {
                       timestamp: lastMsg ? lastMsg.timestamp : new Date()
                   });
                   const rooms = await ChatRoom.find().sort({ timestamp: -1 });
-                  const adminRoomInfo = { _id: ADMIN_ONLY_ROOM_ID, displayName: '⭐️ Phòng chat Quản trị viên', lastMessage: 'Nơi các quản trị viên trao đổi nội bộ...', timestamp: new Date(), isSpecial: true };
+                  const adminRoomInfo = { 
+                      _id: ADMIN_ONLY_ROOM_ID, 
+                      displayName: '⭐️ Phòng chat Quản trị viên', 
+                      lastMessage: 'Nơi các quản trị viên trao đổi nội bộ...', 
+                      timestamp: new Date(), 
+                      isSpecial: true 
+                  };
                   io.to('admin_room').emit('chatList', [adminRoomInfo, ...rooms]);
               }
           }
