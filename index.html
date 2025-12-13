@@ -221,9 +221,15 @@
 
         // --- CORE FUNCTIONS ---
         // (Giữ nguyên các hàm linkify, toast, notification...)
-        function linkify(text) {
+		function linkify(text) {
             const urlRegex = /(\b(https?|ftp|file):\/\/[-A-Z0-9+&@#\/%?=~_|!:,.;]*[-A-Z0-9+&@#\/%=~_|])/ig;
-            return text.replace(urlRegex, url => `<a href="${url}" target="_blank" class="underline text-blue-600">${url}</a>`);
+            
+            // SỬA TẠI ĐÂY:
+            // Thay class "text-blue-600" thành "text-[#c19a6b]" (Màu vàng nâu chủ đạo)
+            // Hoặc dùng "text-yellow-600" nếu muốn vàng tươi hơn.
+            // Mình thêm 'font-bold' để link đậm hơn cho dễ nhìn.
+            
+            return text.replace(urlRegex, url => `<a href="${url}" target="_blank" class="underline text-[#c19a6b] hover:text-[#a9885a] font-bold break-all">${url}</a>`);
         }
         
         function showScreen(screen) {
@@ -448,5 +454,6 @@
     </script>
 </body>
 </html>
+
 
 
