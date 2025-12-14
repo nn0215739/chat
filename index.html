@@ -4,14 +4,13 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>PHÁP MÔN TÂM LINH - KẾT NỐI CỘNG ĐỒNG</title>
-	<link id="favicon" rel="icon" href="/favicon.ico" type="image/png">
+	<link id="favicon" rel="icon" href="/favicon.ico" type="image/x-icon">
 	<link href="/dist/output.css" rel="stylesheet">
     <script src="https://cdn.socket.io/4.6.1/socket.io.min.js"></script>
 	<script src="https://cdnjs.cloudflare.com/ajax/libs/tone/14.7.77/Tone.js"></script>
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
-    <link rel="manifest" href="/manifest.json">
     <style>
         html, body {
             height: 100%;
@@ -82,23 +81,6 @@
                 <button id="confirm-cancel-button" class="px-4 py-2 bg-gray-200 text-gray-800 rounded-lg hover:bg-gray-300">Hủy bỏ</button>
                 <button id="confirm-action-button" class="px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700">Xác nhận Xóa</button>
             </div>
-        </div>
-    </div>
-
-    <!-- PWA Install Prompt -->
-    <div id="install-prompt-container" class="hidden fixed bottom-0 left-0 right-0 bg-[#6B4F4F] text-white p-4 flex items-center justify-between z-50 shadow-lg">
-        <div class="flex items-center">
-            <svg class="w-8 h-8 mr-3" fill="currentColor" viewBox="0 0 20 20" xmlns="http://www.w3.org/2000/svg"><path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clip-rule="evenodd"></path></svg>
-            <div>
-                <p class="font-bold text-sm">Cài đặt ứng dụng Chat</p>
-                <p class="text-xs">Thêm ứng dụng vào màn hình chính để truy cập nhanh.</p>
-            </div>
-        </div>
-        <div class="flex items-center space-x-3">
-            <button id="install-button" class="px-4 py-2 bg-white text-[#6B4F4F] rounded-lg font-bold text-sm hover:bg-gray-100 transition">Cài đặt</button>
-            <button id="close-install-prompt" class="text-white hover:text-gray-200">
-                <svg class="w-5 h-5" fill="currentColor" viewBox="0 0 20 20" xmlns="http://www.w3.org/2000/svg"><path fill-rule="evenodd" d="M4.293 4.293a1 1 0 011.414 0L10 8.586l4.293-4.293a1 1 0 111.414 1.414L11.414 10l4.293 4.293a1 1 0 01-1.414 1.414L10 11.414l-4.293 4.293a1 1 0 01-1.414-1.414L8.586 10 4.293 5.707a1 1 0 010-1.414z" clip-rule="evenodd"></path></svg>
-            </button>
         </div>
     </div>
 
@@ -289,9 +271,6 @@
         let currentRoomId = null;
         let isCurrentChatLocked = false;
         const originalTitle = document.title;
-        const favicon = document.getElementById('favicon');
-        const newMessageFaviconHref = "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Ccircle cx='50' cy='50' r='50' fill='red'/%3E%3Ctext x='50%' y='50%' dominant-baseline='central' text-anchor='middle' font-size='60' fill='white'%3E1%3C/text%3E%3C/svg%3E";
-        const originalFaviconHref = favicon.href;
         let confirmActionCallback = null;
         let deferredInstallPrompt = null;
 		let backButtonPressedOnce = false;
@@ -308,33 +287,58 @@
         const fullSizeImage = document.getElementById('full-size-image');
         let selectedImageBase64 = null; // Biến lưu ảnh đã chọn
 
-		// --- LOGIC XỬ LÝ ẢNH (Nén & Preview) ---
+		// --- LOGIC XỬ LÝ ẢNH (Nén & Giữ trong suốt PNG) ---
         imageInput.addEventListener('change', function(e) {
             const file = e.target.files[0];
             if (!file) return;
-            
-			// Giới hạn file 5MB để tránh treo trình duyệt
-			if (file.size > 5 * 1024 * 1024) { 
-			    showToastNotification({ title: "Lỗi", text: "Ảnh quá lớn (>5MB)." }, 'error'); 
-			    return; 
-			}
+
+            // Lấy loại file gốc
+            const fileType = file.type;
+
+            // Giới hạn file 5MB
+            if (file.size > 5 * 1024 * 1024) { 
+                showToastNotification({ title: "Lỗi", text: "Ảnh quá lớn (>5MB)." }, 'error'); 
+                return; 
+            }
 
             const reader = new FileReader();
             reader.onload = function(event) {
                 const img = new Image();
                 img.onload = function() {
-                    // Tạo Canvas để nén ảnh
                     const canvas = document.createElement('canvas');
-                    let width = img.width; let height = img.height;
-                    const maxSize = 800; // Resize về tối đa 800px
-                    if (width > height) { if (width > maxSize) { height *= maxSize / width; width = maxSize; } } 
-                    else { if (height > maxSize) { width *= maxSize / height; height = maxSize; } }
+                    let width = img.width; 
+                    let height = img.height;
+                    const maxSize = 800; // Kích thước tối đa sau khi nén
+                    
+                    // Logic Resize
+                    if (width > height) { 
+                        if (width > maxSize) { height *= maxSize / width; width = maxSize; } 
+                    } else { 
+                        if (height > maxSize) { width *= maxSize / height; height = maxSize; } 
+                    }
                     canvas.width = width; canvas.height = height;
                     const ctx = canvas.getContext('2d');
+                    
+                    // Nếu file gốc là PNG, đảm bảo canvas có nền trong suốt
+                    if (fileType === 'image/png') {
+                        ctx.fillStyle = 'rgba(0, 0, 0, 0)'; // Đảm bảo nền trong suốt
+                        ctx.fillRect(0, 0, canvas.width, canvas.height);
+                    }
+                    
                     ctx.drawImage(img, 0, 0, width, height);
                     
-                    // Chuyển thành Base64 (JPEG chất lượng 70%)
-                    selectedImageBase64 = canvas.toDataURL('image/jpeg', 0.7);
+                    // Định dạng đầu ra: Giữ PNG nếu là PNG gốc, còn lại dùng JPEG
+                    const outputType = (fileType === 'image/png') ? 'image/png' : 'image/jpeg';
+                    
+                    // Nén và chuyển thành Base64
+                    selectedImageBase64 = canvas.toDataURL(outputType, 0.7);
+                    
+                    // --- KIỂM TRA BASE64 CUỐI CÙNG (Dù đã nén nhưng vẫn kiểm tra) ---
+                    if (selectedImageBase64.length > 2 * 1024 * 1024) { 
+                        showToastNotification({ title: "Lỗi", text: "Ảnh quá lớn sau khi nén." }, 'error'); 
+                        selectedImageBase64 = null;
+                        return;
+                    }
                     
                     // Hiện preview
                     imagePreview.src = selectedImageBase64;
@@ -425,10 +429,6 @@
                     toastToRemove.addEventListener('transitionend', () => toastToRemove.remove());
                 }
             }, 4000);
-        }
-
-        function updateFavicon(hasNewMessage) {
-            favicon.href = hasNewMessage ? newMessageFaviconHref : originalFaviconHref;
         }
 
         function showSendingState(isSending) {
@@ -716,13 +716,11 @@
                             });
                         }
                         document.title = `(Mới) ${notificationTitle}`;
-                        updateFavicon(true);
                     } else if (message.roomId === currentRoomId) {
                         playNewMessageSound();
                     }
                 }
             });
-
 
             socket.on('chat:locked', ({ roomId, isLocked }) => {
                 if(currentRoomId === roomId) {
@@ -1109,37 +1107,6 @@
         }
         autoInitialize();
 
-        window.addEventListener('beforeinstallprompt', (e) => {
-            e.preventDefault();
-            deferredInstallPrompt = e;
-            installPromptContainer.classList.remove('hidden');
-        });
-
-        installButton.addEventListener('click', async () => {
-            if (deferredInstallPrompt) {
-                installPromptContainer.classList.add('hidden');
-                deferredInstallPrompt.prompt();
-                const { outcome } = await deferredInstallPrompt.userChoice;
-                deferredInstallPrompt = null;
-                if (outcome === 'accepted') {
-                    showToastNotification({ title: "Cài đặt thành công", text: "Ứng dụng đã được thêm vào màn hình chính!" }, 'success');
-                } else {
-                    showToastNotification({ title: "Đã huỷ cài đặt", text: "Bạn đã huỷ việc cài đặt ứng dụng." }, 'info');
-                }
-            }
-        });
-
-        closeInstallPrompt.addEventListener('click', () => {
-            installPromptContainer.classList.add('hidden');
-            deferredInstallPrompt = null;
-        });
-
-        window.addEventListener('appinstalled', () => {
-            installPromptContainer.classList.add('hidden');
-            deferredInstallPrompt = null;
-            showToastNotification({ title: "Đã cài đặt!", text: "Ứng dụng Chat đã được cài đặt thành công." }, 'success');
-        });
-
         if ('serviceWorker' in navigator) {
             window.addEventListener('load', () => {
                 navigator.serviceWorker.register('/service-worker.js')
@@ -1188,6 +1155,7 @@
 	<div class="hidden bg-orange-500 hover:bg-orange-700"></div>
 </body>
 </html>
+
 
 
 
