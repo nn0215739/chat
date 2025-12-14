@@ -7,7 +7,6 @@
     <link id="favicon" rel="icon" href="/favicon.ico" type="image/png">
     
     <script src="https://cdn.tailwindcss.com"></script>
-    
     <script src="https://cdn.socket.io/4.6.1/socket.io.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/tone/14.7.77/Tone.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/dompurify/3.0.6/purify.min.js"></script>
@@ -20,7 +19,7 @@
         html, body { height: 100%; overflow: hidden; }
         body { font-family: 'Inter', sans-serif; }
         
-        /* Scrollbar */
+        /* Custom Scrollbar */
         .scrollable-content::-webkit-scrollbar { width: 6px; }
         .scrollable-content::-webkit-scrollbar-track { background: #f1f1f1; }
         .scrollable-content::-webkit-scrollbar-thumb { background: #c19a6b; border-radius: 6px; }
@@ -32,7 +31,7 @@
         .chat-image { max-width: 100%; border-radius: 8px; margin-top: 5px; cursor: pointer; border: 1px solid rgba(0,0,0,0.1); }
         .chat-image:hover { opacity: 0.9; }
         
-        /* Image Preview */
+        /* Preview Container */
         #image-preview-container { position: absolute; bottom: 80px; left: 20px; right: 20px; background: white; padding: 10px; border-radius: 10px; box-shadow: 0 -2px 10px rgba(0,0,0,0.1); display: none; z-index: 30; }
         #image-preview { max-height: 150px; border-radius: 5px; display: block; margin: 0 auto; }
         #remove-image { position: absolute; top: 5px; right: 5px; background: red; color: white; border-radius: 50%; width: 24px; height: 24px; text-align: center; line-height: 24px; cursor: pointer; font-weight: bold; }
@@ -50,12 +49,10 @@
         <img id="full-size-image" src="" class="max-w-full max-h-full object-contain p-2">
     </div>
 
-    <div id="toast-container" class="fixed top-5 right-5 z-50 w-full max-w-xs space-y-2 pointer-events-none"></div>
-
     <div id="confirmation-modal" class="hidden fixed inset-0 bg-gray-900 bg-opacity-60 flex items-center justify-center z-50">
         <div class="bg-white rounded-lg shadow-xl p-6 w-full max-w-sm mx-4">
-            <h3 id="confirmation-title" class="text-lg font-bold text-gray-800">Xác nhận hành động</h3>
-            <p id="confirmation-message" class="text-gray-600 mt-2">Bạn có chắc chắn muốn xóa?</p>
+            <h3 id="confirmation-title" class="text-lg font-bold text-gray-800">Xác nhận</h3>
+            <p id="confirmation-message" class="text-gray-600 mt-2">Nội dung xác nhận.</p>
             <div class="mt-6 flex justify-end space-x-4">
                 <button id="confirm-cancel-button" class="px-4 py-2 bg-gray-200 text-gray-800 rounded-lg hover:bg-gray-300">Hủy bỏ</button>
                 <button id="confirm-action-button" class="px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700">Xác nhận</button>
@@ -74,6 +71,8 @@
         </div>
     </div>
 
+    <div id="toast-container" class="fixed top-5 right-5 z-50 w-full max-w-xs space-y-2 pointer-events-none"></div>
+
     <div id="app" class="w-full h-full flex flex-col">
         <div id="welcome-screen" class="w-full h-full flex items-center justify-center bg-pattern p-4">
              <div class="text-center p-6 bg-white/80 backdrop-blur-sm rounded-2xl shadow-2xl border border-gray-200 mx-auto max-w-md">
@@ -86,7 +85,7 @@
                     <input id="display-name-input" type="text" placeholder="Ví dụ: Sư Huynh An Lạc" class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-[#c19a6b] focus:border-[#c19a6b]">
                 </div>
                 <div class="mt-4 space-y-3 flex flex-col items-center">
-                    <button id="start-chat-button" class="w-full max-w-xs bg-[#c19a6b] text-white font-bold py-3 px-6 rounded-lg hover:bg-[#a9885a] transition-transform transform hover:scale-105">Bắt đầu trò chuyện</button>
+                    <button id="start-chat-button" class="w-full max-w-xs bg-[#c19a6b] text-white font-bold py-3 px-6 rounded-lg hover:bg-[#a9885a]">Bắt đầu trò chuyện</button>
                 </div>
                 <div class="mt-8 text-center"><button id="admin-login-prompt-button" class="text-xs text-gray-500 hover:text-[#c19a6b] hover:underline">Đăng nhập Quản trị viên</button></div>
              </div>
@@ -170,7 +169,7 @@
         const VAPID_PUBLIC_KEY = "BLR3ESERJvSd663nWEkEVoQHkfIk6V0akO8_lVv8Tl4ATq3TNJc2wZQQUYajbRUN0rXreHPDA5As_OMOMN8e4Ms";
         const ADMIN_ONLY_ROOM_ID = 'admins_only_chat';
 
-        // --- TOAST SYSTEM (Hệ thống thông báo đẹp) ---
+        // --- HELPER: SHOW TOAST ---
         function showToast(message, type = 'info') {
             const container = document.getElementById('toast-container');
             const toast = document.createElement('div');
@@ -189,14 +188,14 @@
             navigator.serviceWorker.register('/service-worker.js').catch(err => console.log('SW Error:', err));
         }
 
-        // --- SOCKET SETUP (Auth & Reconnect) ---
+        // --- DOM Elements ---
+        // Auth token được lấy để gửi lên server xác thực quyền Admin
         const socket = io(BACKEND_URL, { 
             reconnection: true, 
             transports: ['websocket'],
-            auth: { token: localStorage.getItem('adminToken') } // Gửi token khi kết nối
+            auth: { token: localStorage.getItem('adminToken') }
         });
         
-        // --- DOM Elements ---
         const welcomeScreen = document.getElementById('welcome-screen');
         const loginScreen = document.getElementById('login-screen');
         const chatInterface = document.getElementById('chat-interface');
@@ -210,13 +209,12 @@
         const imageModal = document.getElementById('image-modal');
         const fullSizeImage = document.getElementById('full-size-image');
         
+        // Nút Admin (Đã được định nghĩa ở đây để JS có thể thao tác)
         const deleteConversationButton = document.getElementById('delete-conversation-button');
         const lockChatButton = document.getElementById('lock-chat-button');
         const lockChatText = document.getElementById('lock-chat-text');
         
-        // Giữ lại Tone.js
-        const notificationSynth = new Tone.Synth().toDestination();
-
+        // Biến State
         let isAdmin = false;
         let currentUserId = localStorage.getItem('chatUserId');
         let displayName = localStorage.getItem('chatDisplayName');
@@ -225,8 +223,11 @@
         let currentRoomId = null;
         let selectedImageBase64 = null;
         let isCurrentChatLocked = false;
+        let confirmActionCallback = null;
         
-        // --- SOCKET EVENTS ---
+        const notificationSynth = new Tone.Synth().toDestination();
+
+        // --- SOCKET CONNECTION & EVENTS ---
         socket.on('connect', () => {
             console.log('Connected:', socket.id);
             if (isAdmin && localStorage.getItem('adminToken')) {
@@ -285,28 +286,30 @@
         // --- SECURITY: LINKIFY & SANITIZE ---
         function linkify(text) {
             const urlRegex = /(\b(https?|ftp|file):\/\/[-A-Z0-9+&@#\/%?=~_|!:,.;]*[-A-Z0-9+&@#\/%=~_|])/ig;
-            // Fix Reverse Tabnabbing
+            // Màu link vàng nâu như yêu cầu
             const textWithLinks = text.replace(urlRegex, url => `<a href="${url}" target="_blank" rel="noopener noreferrer" class="underline text-[#c19a6b] hover:text-[#a9885a] font-bold break-all">${url}</a>`);
-            // DOMPurify
+            // DOMPurify để chống XSS
             return DOMPurify.sanitize(textWithLinks, { 
                 ALLOWED_TAGS: ['a', 'b', 'i', 'br'], 
                 ALLOWED_ATTR: ['href', 'target', 'class', 'rel'] 
             });
         }
         
-        // --- UI FUNCTIONS ---
+        // --- UI NAVIGATION ---
         function showScreen(screen) {
             [welcomeScreen, loginScreen, chatInterface].forEach(s => s.classList.add('hidden'));
             screen.classList.remove('hidden');
             screen.classList.add('flex');
         }
 
+        // --- ADMIN CONTROLS LOGIC (Quan trọng: Đã phục hồi) ---
         function updateAdminControls(show) {
             if (!isAdmin) {
                 deleteConversationButton.classList.add('hidden');
                 lockChatButton.classList.add('hidden');
                 return;
             }
+            // Chỉ hiện nút khi đang trong phòng user (không phải phòng admin chung)
             const isUserRoom = show && currentRoomId !== ADMIN_ONLY_ROOM_ID;
             if (isUserRoom) {
                 deleteConversationButton.classList.remove('hidden');
@@ -333,21 +336,37 @@
             }
         }
 
-        // --- BUTTON EVENTS ---
+        // --- ADMIN BUTTON EVENTS ---
+        // Logic Modal Xác nhận (Tận dụng Modal có sẵn trong HTML gốc)
+        function showCustomConfirmationModal(onConfirm) {
+            const modal = document.getElementById('confirmation-modal');
+            const confirmBtn = document.getElementById('confirm-action-button');
+            const cancelBtn = document.getElementById('confirm-cancel-button');
+            
+            modal.classList.remove('hidden');
+            
+            // Xóa event cũ để tránh bị double click
+            const newConfirmBtn = confirmBtn.cloneNode(true);
+            confirmBtn.parentNode.replaceChild(newConfirmBtn, confirmBtn);
+            
+            newConfirmBtn.addEventListener('click', () => {
+                onConfirm();
+                modal.classList.add('hidden');
+            });
+            cancelBtn.onclick = () => modal.classList.add('hidden');
+        }
+
         deleteConversationButton.addEventListener('click', () => {
-            document.getElementById('confirmation-modal').classList.remove('hidden');
-            document.getElementById('confirm-action-button').onclick = () => {
+            showCustomConfirmationModal(() => {
                 socket.emit('admin:deleteConversation', { roomId: currentRoomId });
-                document.getElementById('confirmation-modal').classList.add('hidden');
-            };
+            });
         });
-        document.getElementById('confirm-cancel-button').onclick = () => document.getElementById('confirmation-modal').classList.add('hidden');
 
         lockChatButton.addEventListener('click', () => {
              socket.emit('admin:toggleLock', { roomId: currentRoomId, isLocked: !isCurrentChatLocked });
         });
 
-        // --- RENDERING ---
+        // --- RENDERING MESSAGES ---
         function renderMessages(messages) {
             messagesDiv.innerHTML = '';
             if (messages.length === 0) {
@@ -390,12 +409,16 @@
                 bubble.appendChild(imgElement);
             }
 
+            // Nút xóa tin nhắn lẻ cho Admin
             if (isAdmin && currentRoomId) {
                 const deleteMsgBtn = document.createElement('button');
                 deleteMsgBtn.innerHTML = '×';
                 const pos = msg.isAdmin ? '-left-2' : '-right-2';
                 deleteMsgBtn.className = `absolute -top-2 ${pos} bg-red-500 text-white rounded-full w-5 h-5 flex items-center justify-center text-xs opacity-0 group-hover:opacity-100 transition shadow-sm`;
-                deleteMsgBtn.onclick = (e) => { e.stopPropagation(); if(confirm('Xóa tin này?')) socket.emit('admin:deleteMessage', { messageId: msg._id, roomId: currentRoomId }); };
+                deleteMsgBtn.onclick = (e) => { 
+                    e.stopPropagation(); 
+                    if(confirm('Xóa tin này?')) socket.emit('admin:deleteMessage', { messageId: msg._id, roomId: currentRoomId }); 
+                };
                 bubble.appendChild(deleteMsgBtn);
             }
 
@@ -410,7 +433,7 @@
             container.scrollTop = container.scrollHeight;
         }
 
-        // --- SEND LOGIC (Timeout & Validations) ---
+        // --- SEND LOGIC ---
         messageForm.addEventListener('submit', async e => {
             e.preventDefault();
             const text = messageInput.value.trim();
@@ -423,6 +446,7 @@
             const sendBtn = document.getElementById('send-message-button');
             sendBtn.disabled = true;
 
+            // Timeout safety
             const timeout = setTimeout(() => {
                 sendBtn.disabled = false;
                 showToast("Gửi thất bại (Timeout).", "error");
@@ -444,7 +468,7 @@
             });
         });
 
-        // --- INIT APP ---
+        // --- INIT & NAVIGATION ---
         document.getElementById('start-chat-button').addEventListener('click', async () => {
             try { if (typeof Tone !== 'undefined' && Tone.context.state !== 'running') await Tone.start(); } catch(e){}
             displayName = document.getElementById('display-name-input').value.trim() || 'Sư Huynh Vô Danh';
@@ -468,6 +492,7 @@
                 
                 adminDisplayName = data.displayName; adminEmail = data.email; isAdmin = true;
                 
+                // Refresh token cho socket
                 socket.auth.token = data.token;
                 socket.disconnect().connect();
                 
@@ -477,9 +502,13 @@
         });
 
         document.getElementById('logout-button').addEventListener('click', () => { localStorage.clear(); location.reload(); });
-        document.getElementById('user-logout-button').addEventListener('click', () => { if(confirm("Thoát?")) { localStorage.clear(); location.reload(); }});
+        document.getElementById('user-logout-button').addEventListener('click', () => { 
+            showCustomConfirmationModal(() => {
+                localStorage.clear(); location.reload(); 
+            });
+        });
         
-        // Logic chuyển màn hình Mobile (Fix nút Back)
+        // Mobile Navigation (Nút Back)
         document.getElementById('open-chat-list-button').addEventListener('click', () => {
             document.getElementById('chat-list-panel').classList.remove('hidden');
             document.getElementById('chat-window-panel').classList.add('hidden');
@@ -504,12 +533,14 @@
             askPermissionAndSubscribe();
         }
 
-        // --- SOCKET LISTENER (New Message) ---
+        // --- SOCKET HANDLERS ---
         socket.on('newMessage', msg => { 
             if (msg.roomId === currentRoomId) { 
                 appendMessage(msg); 
                 scrollToBottom(); 
-                if(!msg.isAdmin && isAdmin) playNewMessageSound(); 
+                if(!msg.isAdmin && isAdmin) {
+                    if (typeof playNewMessageSound === 'function') playNewMessageSound();
+                }
             } 
         });
         
@@ -530,7 +561,10 @@
                     document.getElementById('chat-header-title').textContent = room.displayName;
                     document.querySelectorAll('#chat-list-container > div').forEach(el => el.classList.remove('bg-[#e6dacb]'));
                     div.classList.add('bg-[#e6dacb]');
+                    
                     socket.emit('admin:viewRoom', room._id);
+                    
+                    // Mobile Transition
                     if(window.innerWidth < 768) {
                         document.getElementById('chat-list-panel').classList.add('hidden');
                         const cw = document.getElementById('chat-window-panel'); cw.classList.remove('hidden'); cw.classList.add('flex');
@@ -540,6 +574,7 @@
             });
         });
 
+        // QUAN TRỌNG: Trigger hiện nút Admin ở đây
         socket.on('roomDetails', ({messages, isClosed}) => {
             isCurrentChatLocked = isClosed;
             renderMessages(messages);
@@ -564,6 +599,7 @@
 
         socket.on('chatError', (msg) => showToast(msg, "error"));
 
+        // Auto Init
         if(localStorage.getItem('adminToken')) { 
             isAdmin=true; 
             adminDisplayName=localStorage.getItem('adminDisplayName'); 
@@ -576,6 +612,12 @@
 
         function urlBase64ToUint8Array(base64String) { const padding = '='.repeat((4 - base64String.length % 4) % 4); const base64 = (base64String + padding).replace(/-/g, '+').replace(/_/g, '/'); const rawData = window.atob(base64); const outputArray = new Uint8Array(rawData.length); for (let i = 0; i < rawData.length; ++i) outputArray[i] = rawData.charCodeAt(i); return outputArray; }
         async function askPermissionAndSubscribe() { if (!('serviceWorker' in navigator)) return; try { const reg = await navigator.serviceWorker.ready; let sub = await reg.pushManager.getSubscription(); if (!sub) sub = await reg.pushManager.subscribe({ userVisibleOnly: true, applicationServerKey: urlBase64ToUint8Array(VAPID_PUBLIC_KEY) }); const endpoint = isAdmin ? '/api/save-admin-subscription' : '/api/save-subscription'; const body = isAdmin ? { subscription: sub } : { subscription: sub, roomId: currentUserId }; await fetch(BACKEND_URL + endpoint, { method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify(body) }); } catch (e) { console.error(e); } }
+        
+        function playNewMessageSound() {
+		    if (typeof Tone !== 'undefined' && Tone.context.state === 'running') {
+		        try { notificationSynth.triggerAttackRelease("C5", "8n"); } catch (e) {}
+		    }
+		}
     </script>
 </body>
 </html>
