@@ -566,25 +566,33 @@
 		            setupSocketListeners();
 		}
 
-        startChatButton.addEventListener('click', async () => {
-			// Dòng này rất quan trọng, nó xin phép trình duyệt để phát âm thanh
-		    if (Tone.context.state !== 'running') {
-		        await Tone.start();
-		    }
-			
+		startChatButton.addEventListener('click', async () => {
+            // 1. LƯU THÔNG TIN NGƯỜI DÙNG (Làm trước)
             displayName = displayNameInput.value.trim() || 'Sư Huynh Vô Danh';
             localStorage.setItem('chatDisplayName', displayName);
+            
             if (!currentUserId) {
                 currentUserId = 'user_' + Date.now() + Math.random().toString(36).substring(2, 9);
                 localStorage.setItem('chatUserId', currentUserId);
             }
 
-            await askPermissionAndSubscribe(); 
-            
+            // 2. CHUYỂN GIAO DIỆN NGAY LẬP TỨC (QUAN TRỌNG NHẤT)
+            // Đưa các dòng này lên trước các lệnh 'await' để người dùng không bị kẹt
             isAdmin = false;
-            initializeSocketConnection();
-            showScreen(chatInterface);
-			setupUserView();
+            initializeSocketConnection(); // Kết nối socket
+            showScreen(chatInterface);    // Hiện màn hình chat
+            setupUserView();              // Cài đặt giao diện user
+
+            // 3. XỬ LÝ CÁC TÁC VỤ NỀN (Âm thanh & Thông báo)
+            // Để xuống cuối và xử lý lỗi (catch) để không làm treo app
+            
+            // Kích hoạt Tone.js
+            if (typeof Tone !== 'undefined' && Tone.context.state !== 'running') {
+                Tone.start().catch(e => console.warn("Không thể khởi động âm thanh:", e));
+            }
+
+            // Xin quyền thông báo (Chạy ngầm, không dùng await chặn dòng chảy)
+            askPermissionAndSubscribe().catch(err => console.warn("Chưa cấp quyền thông báo:", err));
         });
 
         adminLoginPromptButton.addEventListener('click', () => showScreen(loginScreen));
@@ -1166,6 +1174,7 @@
 	<div class="hidden bg-orange-500 hover:bg-orange-700"></div>
 </body>
 </html>
+
 
 
 
