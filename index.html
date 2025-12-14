@@ -287,19 +287,23 @@
         const fullSizeImage = document.getElementById('full-size-image');
         let selectedImageBase64 = null; // Biến lưu ảnh đã chọn
 
-		// --- LOGIC XỬ LÝ ẢNH (Nén & Giữ trong suốt PNG) ---
-        imageInput.addEventListener('change', function(e) {
+		imageInput.addEventListener('change', function(e) {
             const file = e.target.files[0];
             if (!file) return;
 
             // Lấy loại file gốc
             const fileType = file.type;
 
-            // Giới hạn file 5MB
-            if (file.size > 5 * 1024 * 1024) { 
-                showToastNotification({ title: "Lỗi", text: "Ảnh quá lớn (>5MB)." }, 'error'); 
+            // --- SỬA ĐỔI TẠI ĐÂY ---
+            // Thay vì chặn 5MB, ta cho phép file gốc lên đến 20MB 
+            // Vì sau đó ta sẽ nén nó xuống rất nhỏ.
+            // Nếu file > 20MB thì mới chặn để tránh treo trình duyệt.
+            if (file.size > 20 * 1024 * 1024) { 
+                showToastNotification({ title: "Lỗi", text: "File gốc quá lớn (>20MB). Vui lòng chọn ảnh nhỏ hơn." }, 'error'); 
+                this.value = ''; // Reset input
                 return; 
             }
+            // -----------------------
 
             const reader = new FileReader();
             reader.onload = function(event) {
@@ -310,7 +314,7 @@
                     let height = img.height;
                     const maxSize = 800; // Kích thước tối đa sau khi nén
                     
-                    // Logic Resize
+                    // Logic Resize (Giữ nguyên)
                     if (width > height) { 
                         if (width > maxSize) { height *= maxSize / width; width = maxSize; } 
                     } else { 
@@ -321,21 +325,23 @@
                     
                     // Nếu file gốc là PNG, đảm bảo canvas có nền trong suốt
                     if (fileType === 'image/png') {
-                        ctx.fillStyle = 'rgba(0, 0, 0, 0)'; // Đảm bảo nền trong suốt
+                        ctx.fillStyle = 'rgba(0, 0, 0, 0)'; 
                         ctx.fillRect(0, 0, canvas.width, canvas.height);
                     }
                     
                     ctx.drawImage(img, 0, 0, width, height);
                     
-                    // Định dạng đầu ra: Giữ PNG nếu là PNG gốc, còn lại dùng JPEG
+                    // Định dạng đầu ra
                     const outputType = (fileType === 'image/png') ? 'image/png' : 'image/jpeg';
                     
                     // Nén và chuyển thành Base64
+                    // Chất lượng 0.7 là đủ tốt và nhẹ
                     selectedImageBase64 = canvas.toDataURL(outputType, 0.7);
                     
-                    // --- KIỂM TRA BASE64 CUỐI CÙNG (Dù đã nén nhưng vẫn kiểm tra) ---
+                    // Kiểm tra kích thước file SAU KHI NÉN (để đảm bảo gửi qua mạng được)
+                    // Base64 ~1.33 lần kích thước binary. 2MB Base64 ~ 1.5MB ảnh.
                     if (selectedImageBase64.length > 2 * 1024 * 1024) { 
-                        showToastNotification({ title: "Lỗi", text: "Ảnh quá lớn sau khi nén." }, 'error'); 
+                        showToastNotification({ title: "Lỗi", text: "Ảnh sau khi nén vẫn quá lớn." }, 'error'); 
                         selectedImageBase64 = null;
                         return;
                     }
@@ -1174,6 +1180,7 @@
 	<div class="hidden bg-orange-500 hover:bg-orange-700"></div>
 </body>
 </html>
+
 
 
 
