@@ -73,9 +73,6 @@
     </style>
 </head>
 <body class="bg-[#fffbbe] antialiased">
-	<div id="image-modal" class="hidden fixed inset-0 bg-black bg-opacity-90 flex items-center justify-center z-[60]" onclick="this.classList.add('hidden')">
-	        <img id="full-size-image" src="" class="max-w-full max-h-full object-contain p-2">
-	</div>
     <!-- Confirmation Modal -->
     <div id="confirmation-modal" class="hidden fixed inset-0 bg-gray-900 bg-opacity-60 flex items-center justify-center z-50">
         <div class="bg-white rounded-lg shadow-xl p-6 w-full max-w-sm mx-4">
@@ -228,7 +225,10 @@
             </div>
         </div>
     </div>
-
+	<div id="image-modal" class="hidden fixed inset-0 z-[9999] bg-black/95 flex items-center justify-center p-4 transition-opacity duration-300 backdrop-blur-sm" onclick="this.classList.add('hidden')">
+	        <img id="full-size-image" src="" class="max-w-full max-h-full object-contain rounded-lg shadow-2xl transition-transform duration-300 scale-100">
+	        <button class="absolute top-6 right-6 text-white/80 hover:text-white text-5xl font-bold cursor-pointer focus:outline-none">&times;</button>
+	</div>
     <script>
         // --- CONFIGURATION ---
         const BACKEND_URL = "https://chat-t1ar.onrender.com";
@@ -952,11 +952,25 @@
 			if (msg.image) {
 			                const imgElement = document.createElement('img');
 			                imgElement.src = msg.image;
-			                imgElement.className = 'chat-image'; // Class CSS đã thêm ở Bước 1
-			                imgElement.onclick = () => {
-			                    document.getElementById('full-size-image').src = msg.image;
-			                    document.getElementById('image-modal').classList.remove('hidden');
+			                
+			                // Thêm class css
+			                imgElement.className = 'chat-image mt-2 rounded-lg cursor-pointer border border-gray-200 hover:opacity-90 transition-opacity';
+			                imgElement.style.maxWidth = '200px'; // Giới hạn chiều rộng ảnh nhỏ trong khung chat
+			                imgElement.style.maxHeight = '200px'; // Giới hạn chiều cao
+			
+			                // Sự kiện bấm vào ảnh để phóng to
+			                imgElement.onclick = (e) => {
+			                    e.stopPropagation(); // Quan trọng: Ngăn chặn click lan ra ngoài
+			                    const modal = document.getElementById('image-modal');
+			                    const fullImg = document.getElementById('full-size-image');
+			                    
+			                    // Reset src trước khi gán mới để tránh hiện ảnh cũ trong tíc tắc
+			                    fullImg.src = ''; 
+			                    fullImg.src = msg.image;
+			                    
+			                    modal.classList.remove('hidden');
 			                };
+			                
 			                bubble.appendChild(imgElement);
 			}
             bubble.appendChild(messageContentDiv);
@@ -1165,4 +1179,5 @@
 	<div class="hidden bg-orange-500 hover:bg-orange-700"></div>
 </body>
 </html>
+
 
