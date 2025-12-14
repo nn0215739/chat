@@ -412,14 +412,19 @@
                 div.className = `p-4 border-b hover:bg-gray-100 cursor-pointer ${room._id === currentRoomId ? 'bg-[#e6dacb]' : ''}`;
                 div.innerHTML = `<p class="font-bold text-[#6B4F4F]">${room.displayName}</p><p class="text-sm truncate text-gray-500">${room.lastMessage}</p>`;
                 div.onclick = () => {
-                    currentRoomId = room._id;
+					currentRoomId = room._id;
                     document.getElementById('chat-header-title').textContent = room.displayName;
                     document.querySelectorAll('#chat-list-container > div').forEach(el => el.classList.remove('bg-[#e6dacb]'));
                     div.classList.add('bg-[#e6dacb]');
                     socket.emit('admin:viewRoom', room._id);
+                    
                     if(window.innerWidth < 768) {
                         document.getElementById('chat-list-panel').classList.add('hidden');
-                        document.getElementById('chat-window-panel').classList.remove('hidden');
+                        
+                        // SỬA TẠI ĐÂY: Thêm class 'flex' để giao diện hiển thị đúng
+                        const chatWindow = document.getElementById('chat-window-panel');
+                        chatWindow.classList.remove('hidden');
+                        chatWindow.classList.add('flex'); // <--- QUAN TRỌNG
                     }
                 };
                 container.appendChild(div);
@@ -454,6 +459,7 @@
     </script>
 </body>
 </html>
+
 
 
 
