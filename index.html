@@ -27,10 +27,55 @@
         .bg-pattern {
             background-image: url("data:image/svg+xml,%3Csvg width='60' height='60' viewBox='0 0 60 60' xmlns='http://www.w3.org/2000/svg'%3E%3Cg fill='none' fill-rule='evenodd'%3E%3Cg fill='%23c19a6b' fill-opacity='0.1'%3E%3Cpath d='M36 34v-4h-2v4h-4v2h4v4h2v-4h4v-2h-4zm0-30V0h-2v4h-4v2h4v4h2V6h4V4h-4zM6 34v-4H4v4H0v2h4v4h2v-4h4v-2H6zM6 4V0H4v4H0v2h4v4h2V6h4V4H6z'/%3E%3C/g%3E%3C/g%3E%3C/svg%3E");
         }
+		/* --- THÊM MỚI: CSS CHO ẢNH --- */
+        .chat-image { 
+            max-width: 100%; 
+            border-radius: 8px; 
+            margin-top: 5px; 
+            cursor: pointer; 
+            border: 1px solid rgba(0,0,0,0.1); 
+        }
+        .chat-image:hover { opacity: 0.9; }
+        
+        /* Khung xem trước ảnh khi chọn */
+        #image-preview-container { 
+            position: absolute; 
+            bottom: 80px; 
+            left: 20px; 
+            right: 20px; 
+            background: white; 
+            padding: 10px; 
+            border-radius: 10px; 
+            box-shadow: 0 -2px 10px rgba(0,0,0,0.1); 
+            display: none; 
+            z-index: 30; 
+        }
+        #image-preview { 
+            max-height: 150px; 
+            border-radius: 5px; 
+            display: block; 
+            margin: 0 auto; 
+        }
+        #remove-image { 
+            position: absolute; 
+            top: 5px; 
+            right: 5px; 
+            background: red; 
+            color: white; 
+            border-radius: 50%; 
+            width: 24px; 
+            height: 24px; 
+            text-align: center; 
+            line-height: 24px; 
+            cursor: pointer; 
+            font-weight: bold; 
+        }
     </style>
 </head>
 <body class="bg-[#fffbbe] antialiased">
-
+	<div id="image-modal" class="hidden fixed inset-0 bg-black bg-opacity-90 flex items-center justify-center z-[60]" onclick="this.classList.add('hidden')">
+	        <img id="full-size-image" src="" class="max-w-full max-h-full object-contain p-2">
+	</div>
     <!-- Confirmation Modal -->
     <div id="confirmation-modal" class="hidden fixed inset-0 bg-gray-900 bg-opacity-60 flex items-center justify-center z-50">
         <div class="bg-white rounded-lg shadow-xl p-6 w-full max-w-sm mx-4">
@@ -160,9 +205,19 @@
                             <p id="admin-placeholder" class="hidden mt-4 text-sm">Vui lòng chọn một cuộc trò chuyện từ danh sách bên trái.</p>
                         </div>
                     </div>
+					<div id="image-preview-container">
+	                    <div id="remove-image">×</div>
+	                    <img id="image-preview" src="" alt="Preview">
+	                </div>
                 </main>
                 <footer id="message-footer" class="flex-shrink-0 p-4 bg-white/80 backdrop-blur-sm border-t border-gray-200">
-                    <form id="message-form" class="flex items-center space-x-4">
+					<form id="message-form" class="flex items-center space-x-4">
+						<label for="image-input" class="cursor-pointer text-gray-500 hover:text-[#c19a6b] p-2">
+                            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-6 h-6">
+                                <path stroke-linecap="round" stroke-linejoin="round" d="M2.25 15.75l5.159-5.159a2.25 2.25 0 013.182 0l5.159 5.159m-1.5-1.5l1.409-1.409a2.25 2.25 0 013.182 0l2.909 2.909m-18 3.75h16.5a1.5 1.5 0 001.5-1.5V6a1.5 1.5 0 00-1.5-1.5H3.75A1.5 1.5 0 002.25 6v12a1.5 1.5 0 001.5 1.5zm10.5-11.25h.008v.008h-.008V8.25zm.375 0a.375.375 0 11-.75 0 .375.375 0 01.75 0z" />
+                            </svg>
+                        </label>
+                        <input type="file" id="image-input" accept="image/*" class="hidden">
                         <input id="message-input" type="text" placeholder="Nhập câu hỏi của bạn..." autocomplete="off" class="w-full px-4 py-3 border border-gray-300 rounded-full focus:ring-[#c19a6b] focus:border-[#c19a6b] transition disabled:bg-gray-200">
                         <button type="submit" id="send-message-button" class="bg-[#c19a6b] text-white rounded-full p-3 hover:bg-[#a9885a] transition-transform transform hover:scale-110 disabled:bg-gray-400 disabled:transform-none disabled:cursor-not-allowed flex items-center justify-center">
                             <svg id="send-icon" class="w-6 h-6" fill="currentColor" viewBox="0 0 20 20"><path d="M10.894 2.553a1 1 0 00-1.788 0l-7 14a1 1 0 001.169 1.409l5-1.429A1 1 0 009 15.571V11a1 1 0 112 0v4.571a1 1 0 00.725.962l5 1.428a1 1 0 001.17-1.408l-7-14z"></path></svg>
@@ -243,6 +298,58 @@
         
         // --- TONE.JS INITIALIZATION ---
         const notificationSynth = new Tone.Synth().toDestination();
+		
+		// --- THÊM CÁC BIẾN MỚI ---
+        const imageInput = document.getElementById('image-input');
+        const imagePreviewContainer = document.getElementById('image-preview-container');
+        const imagePreview = document.getElementById('image-preview');
+        const removeImageBtn = document.getElementById('remove-image');
+        const imageModal = document.getElementById('image-modal');
+        const fullSizeImage = document.getElementById('full-size-image');
+        let selectedImageBase64 = null; // Biến lưu ảnh đã chọn
+
+		// --- LOGIC XỬ LÝ ẢNH (Nén & Preview) ---
+        imageInput.addEventListener('change', function(e) {
+            const file = e.target.files[0];
+            if (!file) return;
+            
+			// Giới hạn file 5MB để tránh treo trình duyệt
+			if (file.size > 5 * 1024 * 1024) { 
+			    showToastNotification({ title: "Lỗi", text: "Ảnh quá lớn (>5MB)." }, 'error'); 
+			    return; 
+			}
+
+            const reader = new FileReader();
+            reader.onload = function(event) {
+                const img = new Image();
+                img.onload = function() {
+                    // Tạo Canvas để nén ảnh
+                    const canvas = document.createElement('canvas');
+                    let width = img.width; let height = img.height;
+                    const maxSize = 800; // Resize về tối đa 800px
+                    if (width > height) { if (width > maxSize) { height *= maxSize / width; width = maxSize; } } 
+                    else { if (height > maxSize) { width *= maxSize / height; height = maxSize; } }
+                    canvas.width = width; canvas.height = height;
+                    const ctx = canvas.getContext('2d');
+                    ctx.drawImage(img, 0, 0, width, height);
+                    
+                    // Chuyển thành Base64 (JPEG chất lượng 70%)
+                    selectedImageBase64 = canvas.toDataURL('image/jpeg', 0.7);
+                    
+                    // Hiện preview
+                    imagePreview.src = selectedImageBase64;
+                    imagePreviewContainer.style.display = 'block';
+                }
+                img.src = event.target.result;
+            }
+            reader.readAsDataURL(file);
+        });
+
+        removeImageBtn.addEventListener('click', () => {
+            selectedImageBase64 = null;
+            imageInput.value = '';
+            imagePreviewContainer.style.display = 'none';
+        });
 		
 		function showCustomConfirmationModal({ title, message, confirmText, confirmClass = 'bg-red-600', onConfirm }) {
             confirmationTitle.textContent = title;
@@ -758,39 +865,49 @@
             }
             scrollToBottom();
         }
-        messageForm.addEventListener('submit', async e => {
+		messageForm.addEventListener('submit', async e => {
             e.preventDefault();
             const text = messageInput.value.trim();
-            if (!text || !currentRoomId || !socket) {
-                showToastNotification({ title: "Lỗi", text: "Không thể gửi tin nhắn. Vui lòng kiểm tra kết nối hoặc chọn cuộc trò chuyện." }, 'error');
+            
+            // 1. CẬP NHẬT ĐIỀU KIỆN: Cho phép gửi nếu có Text HOẶC có Ảnh
+            // (Code cũ chỉ kiểm tra !text)
+            if ((!text && !selectedImageBase64) || !currentRoomId || !socket) {
+                showToastNotification({ title: "Thông báo", text: "Vui lòng nhập nội dung hoặc chọn ảnh để gửi." }, 'error');
                 return;
             }
 
             showSendingState(true);
             
-            // --- CHỈNH SỬA: Xác định tên hiển thị dựa trên phòng chat ---
+            // Logic xác định tên người gửi (Giữ nguyên của code gốc)
             let senderDisplayName;
             if (isAdmin) {
-                // Nếu admin đang ở trong phòng chat riêng của admin, hãy sử dụng email.
-                // Ngược lại (khi chat với người dùng), sử dụng tên hiển thị chung.
                 senderDisplayName = (currentRoomId === ADMIN_ONLY_ROOM_ID) ? adminEmail : adminDisplayName;
             } else {
-                // Đối với người dùng thông thường
                 senderDisplayName = displayName;
             }
 
+            // 2. CẬP NHẬT PAYLOAD: Thêm trường image
             socket.emit('sendMessage', {
                 roomId: currentRoomId,
                 senderId: isAdmin ? 'admin' : currentUserId,
-                text,
-                isAdmin,
+                text: text,
+                image: selectedImageBase64, // <--- THÊM DÒNG NÀY
+                isAdmin: isAdmin,
                 displayName: senderDisplayName
             }, (response) => {
                 showSendingState(false);
+                
+                // 3. XỬ LÝ KẾT QUẢ (Giữ showToastNotification và thêm logic reset ảnh)
                 if (response && response.status === 'error') {
                     showToastNotification({ title: "Lỗi gửi tin nhắn", text: response.message }, 'error');
                 } else {
+                    // Reset ô nhập liệu văn bản
                     messageInput.value = '';
+                    
+                    // --- THÊM: Reset phần ảnh sau khi gửi thành công ---
+                    selectedImageBase64 = null;
+                    imageInput.value = ''; // Xóa file trong thẻ input
+                    imagePreviewContainer.style.display = 'none'; // Ẩn khung preview
                 }
             });
         });
@@ -832,6 +949,16 @@
             }
             messageContentDiv.innerHTML = linkify(msg.text, msg.isAdmin);
             bubble.appendChild(nameSpan);
+			if (msg.image) {
+			                const imgElement = document.createElement('img');
+			                imgElement.src = msg.image;
+			                imgElement.className = 'chat-image'; // Class CSS đã thêm ở Bước 1
+			                imgElement.onclick = () => {
+			                    document.getElementById('full-size-image').src = msg.image;
+			                    document.getElementById('image-modal').classList.remove('hidden');
+			                };
+			                bubble.appendChild(imgElement);
+			}
             bubble.appendChild(messageContentDiv);
             wrapper.appendChild(bubble);
             wrapper.appendChild(time);
@@ -1034,6 +1161,8 @@
 		});
 		// ------------------------------------
     </script>
+	<script src="https://cdnjs.cloudflare.com/ajax/libs/dompurify/3.0.6/purify.min.js"></script>
 	<div class="hidden bg-orange-500 hover:bg-orange-700"></div>
 </body>
 </html>
+
