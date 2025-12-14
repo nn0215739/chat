@@ -9,12 +9,13 @@
   "dependencies": {
     "bcryptjs": "^2.4.3",
     "cors": "^2.8.5",
-    "dotenv": "^16.4.5",       <-- CẬP NHẬT
-    "express": "^4.19.2",      <-- CẬP NHẬT
-    "jsonwebtoken": "^9.0.2",  <-- CẬP NHẬT
-    "mongoose": "^8.4.1",      <-- CẬP NHẬT LỚN (Quan trọng cho bảo mật)
+    "dotenv": "^16.4.5",       
+    "express": "^4.19.2",      
+    "jsonwebtoken": "^9.0.2",  
+    "mongoose": "^8.4.1",      
     "node-telegram-bot-api": "^0.66.0",
-    "socket.io": "^4.7.5",     <-- CẬP NHẬT
-    "web-push": "^3.6.7"       <-- CẬP NHẬT
+    "socket.io": "^4.7.5",    
+    "web-push": "^3.6.7"       
   }
 }
+
