@@ -7,7 +7,9 @@
     <link id="favicon" rel="icon" href="/favicon.ico" type="image/png">
     
     <script src="https://cdn.tailwindcss.com"></script>
+    
     <script src="https://cdn.socket.io/4.6.1/socket.io.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/tone/14.7.77/Tone.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/dompurify/3.0.6/purify.min.js"></script>
 
     <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -17,17 +19,25 @@
     <style>
         html, body { height: 100%; overflow: hidden; }
         body { font-family: 'Inter', sans-serif; }
+        
+        /* Scrollbar */
         .scrollable-content::-webkit-scrollbar { width: 6px; }
         .scrollable-content::-webkit-scrollbar-track { background: #f1f1f1; }
         .scrollable-content::-webkit-scrollbar-thumb { background: #c19a6b; border-radius: 6px; }
         .scrollable-content::-webkit-scrollbar-thumb:hover { background: #a9885a; }
+        
         .bg-pattern { background-image: url("data:image/svg+xml,%3Csvg width='60' height='60' viewBox='0 0 60 60' xmlns='http://www.w3.org/2000/svg'%3E%3Cg fill='none' fill-rule='evenodd'%3E%3Cg fill='%23c19a6b' fill-opacity='0.1'%3E%3Cpath d='M36 34v-4h-2v4h-4v2h4v4h2v-4h4v-2h-4zm0-30V0h-2v4h-4v2h4v4h2V6h4V4h-4zM6 34v-4H4v4H0v2h4v4h2v-4h4v-2H6zM6 4V0H4v4H0v2h4v4h2V6h4V4H6z'/%3E%3C/g%3E%3C/g%3E%3C/svg%3E"); }
+        
+        /* Image Styles */
         .chat-image { max-width: 100%; border-radius: 8px; margin-top: 5px; cursor: pointer; border: 1px solid rgba(0,0,0,0.1); }
         .chat-image:hover { opacity: 0.9; }
+        
+        /* Image Preview */
         #image-preview-container { position: absolute; bottom: 80px; left: 20px; right: 20px; background: white; padding: 10px; border-radius: 10px; box-shadow: 0 -2px 10px rgba(0,0,0,0.1); display: none; z-index: 30; }
         #image-preview { max-height: 150px; border-radius: 5px; display: block; margin: 0 auto; }
         #remove-image { position: absolute; top: 5px; right: 5px; background: red; color: white; border-radius: 50%; width: 24px; height: 24px; text-align: center; line-height: 24px; cursor: pointer; font-weight: bold; }
         
+        /* Toast Animation */
         @keyframes slideIn { from { transform: translateX(100%); opacity: 0; } to { transform: translateX(0); opacity: 1; } }
         @keyframes fadeOut { from { opacity: 1; } to { opacity: 0; } }
         .toast-item { animation: slideIn 0.3s ease-out forwards; }
@@ -35,17 +45,40 @@
     </style>
 </head>
 <body class="bg-[#fffbbe] antialiased">
-    
+
     <div id="image-modal" class="hidden fixed inset-0 bg-black bg-opacity-90 flex items-center justify-center z-[60]" onclick="this.classList.add('hidden')">
         <img id="full-size-image" src="" class="max-w-full max-h-full object-contain p-2">
     </div>
 
     <div id="toast-container" class="fixed top-5 right-5 z-50 w-full max-w-xs space-y-2 pointer-events-none"></div>
 
+    <div id="confirmation-modal" class="hidden fixed inset-0 bg-gray-900 bg-opacity-60 flex items-center justify-center z-50">
+        <div class="bg-white rounded-lg shadow-xl p-6 w-full max-w-sm mx-4">
+            <h3 id="confirmation-title" class="text-lg font-bold text-gray-800">Xác nhận hành động</h3>
+            <p id="confirmation-message" class="text-gray-600 mt-2">Bạn có chắc chắn muốn xóa?</p>
+            <div class="mt-6 flex justify-end space-x-4">
+                <button id="confirm-cancel-button" class="px-4 py-2 bg-gray-200 text-gray-800 rounded-lg hover:bg-gray-300">Hủy bỏ</button>
+                <button id="confirm-action-button" class="px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700">Xác nhận</button>
+            </div>
+        </div>
+    </div>
+
+    <div id="install-prompt-container" class="hidden fixed bottom-0 left-0 right-0 bg-[#6B4F4F] text-white p-4 flex items-center justify-between z-50 shadow-lg">
+        <div class="flex items-center">
+            <svg class="w-8 h-8 mr-3" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clip-rule="evenodd"></path></svg>
+            <div><p class="font-bold text-sm">Cài đặt ứng dụng</p></div>
+        </div>
+        <div class="flex items-center space-x-3">
+            <button id="install-button" class="px-4 py-2 bg-white text-[#6B4F4F] rounded-lg font-bold text-sm hover:bg-gray-100">Cài đặt</button>
+            <button id="close-install-prompt" class="text-white hover:text-gray-200"><svg class="w-5 h-5" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M4.293 4.293a1 1 0 011.414 0L10 8.586l4.293-4.293a1 1 0 111.414 1.414L11.414 10l4.293 4.293a1 1 0 01-1.414 1.414L10 11.414l-4.293 4.293a1 1 0 01-1.414-1.414L8.586 10 4.293 5.707a1 1 0 010-1.414z" clip-rule="evenodd"></path></svg></button>
+        </div>
+    </div>
+
     <div id="app" class="w-full h-full flex flex-col">
         <div id="welcome-screen" class="w-full h-full flex items-center justify-center bg-pattern p-4">
              <div class="text-center p-6 bg-white/80 backdrop-blur-sm rounded-2xl shadow-2xl border border-gray-200 mx-auto max-w-md">
-                <div class="w-20 h-20 mx-auto mb-4 bg-gray-200 rounded-full flex items-center justify-center text-gray-500 font-bold text-xl">LOGO</div>
+                <img src="logo.png" alt="Logo" class="w-20 h-20 mx-auto mb-4 object-contain" onerror="this.style.display='none'; this.nextElementSibling.style.display='block'">
+                <div style="display:none;" class="w-20 h-20 mx-auto mb-4 bg-gray-200 rounded-full flex items-center justify-center text-gray-500">Logo</div>
                 <h1 class="text-2xl font-bold text-[#6B4F4F] leading-tight">PHÁP MÔN TÂM LINH<br><span class="text-2xl">Chia Sẻ & Kết Nối</span></h1>
                 <p class="text-gray-500 mt-2 text-sm">https://chat.pmtl.site</p>
                 <div class="mt-6 w-full max-w-xs mx-auto">
@@ -53,7 +86,7 @@
                     <input id="display-name-input" type="text" placeholder="Ví dụ: Sư Huynh An Lạc" class="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-[#c19a6b] focus:border-[#c19a6b]">
                 </div>
                 <div class="mt-4 space-y-3 flex flex-col items-center">
-                    <button id="start-chat-button" class="w-full max-w-xs bg-[#c19a6b] text-white font-bold py-3 px-6 rounded-lg hover:bg-[#a9885a]">Bắt đầu trò chuyện</button>
+                    <button id="start-chat-button" class="w-full max-w-xs bg-[#c19a6b] text-white font-bold py-3 px-6 rounded-lg hover:bg-[#a9885a] transition-transform transform hover:scale-105">Bắt đầu trò chuyện</button>
                 </div>
                 <div class="mt-8 text-center"><button id="admin-login-prompt-button" class="text-xs text-gray-500 hover:text-[#c19a6b] hover:underline">Đăng nhập Quản trị viên</button></div>
              </div>
@@ -120,6 +153,7 @@
                             </svg>
                         </label>
                         <input type="file" id="image-input" accept="image/*" class="hidden">
+                        
                         <input id="message-input" type="text" placeholder="Nhập tin nhắn..." autocomplete="off" class="flex-grow px-4 py-3 border border-gray-300 rounded-full focus:ring-[#c19a6b] focus:border-[#c19a6b] disabled:bg-gray-200">
                         <button type="submit" id="send-message-button" class="bg-[#c19a6b] text-white rounded-full p-3 hover:bg-[#a9885a] disabled:bg-gray-400 flex items-center justify-center">
                             <svg id="send-icon" class="w-6 h-6" fill="currentColor" viewBox="0 0 20 20"><path d="M10.894 2.553a1 1 0 00-1.788 0l-7 14a1 1 0 001.169 1.409l5-1.429A1 1 0 009 15.571V11a1 1 0 112 0v4.571a1 1 0 00.725.962l5 1.428a1 1 0 001.17-1.408l-7-14z"></path></svg>
@@ -131,10 +165,12 @@
     </div>
 
     <script>
+        // --- CONFIGURATION ---
         const BACKEND_URL = "https://chat-t1ar.onrender.com"; 
         const VAPID_PUBLIC_KEY = "BLR3ESERJvSd663nWEkEVoQHkfIk6V0akO8_lVv8Tl4ATq3TNJc2wZQQUYajbRUN0rXreHPDA5As_OMOMN8e4Ms";
         const ADMIN_ONLY_ROOM_ID = 'admins_only_chat';
 
+        // --- TOAST SYSTEM (Hệ thống thông báo đẹp) ---
         function showToast(message, type = 'info') {
             const container = document.getElementById('toast-container');
             const toast = document.createElement('div');
@@ -148,16 +184,19 @@
             }, 3000);
         }
 
+        // --- SERVICE WORKER ---
         if ('serviceWorker' in navigator) {
             navigator.serviceWorker.register('/service-worker.js').catch(err => console.log('SW Error:', err));
         }
 
+        // --- SOCKET SETUP (Auth & Reconnect) ---
         const socket = io(BACKEND_URL, { 
             reconnection: true, 
             transports: ['websocket'],
-            auth: { token: localStorage.getItem('adminToken') }
+            auth: { token: localStorage.getItem('adminToken') } // Gửi token khi kết nối
         });
         
+        // --- DOM Elements ---
         const welcomeScreen = document.getElementById('welcome-screen');
         const loginScreen = document.getElementById('login-screen');
         const chatInterface = document.getElementById('chat-interface');
@@ -174,6 +213,9 @@
         const deleteConversationButton = document.getElementById('delete-conversation-button');
         const lockChatButton = document.getElementById('lock-chat-button');
         const lockChatText = document.getElementById('lock-chat-text');
+        
+        // Giữ lại Tone.js
+        const notificationSynth = new Tone.Synth().toDestination();
 
         let isAdmin = false;
         let currentUserId = localStorage.getItem('chatUserId');
@@ -184,6 +226,7 @@
         let selectedImageBase64 = null;
         let isCurrentChatLocked = false;
         
+        // --- SOCKET EVENTS ---
         socket.on('connect', () => {
             console.log('Connected:', socket.id);
             if (isAdmin && localStorage.getItem('adminToken')) {
@@ -201,15 +244,13 @@
             }
         });
 
-        // --- Cập nhật logic xử lý ảnh: Giữ độ trong suốt cho PNG ---
+        // --- IMAGE HANDLING (Fix Transparency & Size) ---
         imageInput.addEventListener('change', function(e) {
             const file = e.target.files[0];
             if (!file) return;
             if (file.size > 5 * 1024 * 1024) { showToast("Ảnh quá lớn (>5MB).", "error"); return; }
 
-            // Lưu loại file để quyết định định dạng output
             const fileType = file.type;
-
             const reader = new FileReader();
             reader.onload = function(event) {
                 const img = new Image();
@@ -223,7 +264,7 @@
                     const ctx = canvas.getContext('2d');
                     ctx.drawImage(img, 0, 0, width, height);
                     
-                    // Nếu là PNG thì giữ nguyên, ngược lại dùng JPEG nén 0.7
+                    // Giữ PNG trong suốt, còn lại nén JPEG
                     const outputType = (fileType === 'image/png') ? 'image/png' : 'image/jpeg';
                     selectedImageBase64 = canvas.toDataURL(outputType, 0.7);
                     
@@ -241,19 +282,19 @@
             imagePreviewContainer.style.display = 'none';
         });
 
-        // --- Cập nhật Linkify: Chống Reverse Tabnabbing ---
+        // --- SECURITY: LINKIFY & SANITIZE ---
         function linkify(text) {
             const urlRegex = /(\b(https?|ftp|file):\/\/[-A-Z0-9+&@#\/%?=~_|!:,.;]*[-A-Z0-9+&@#\/%=~_|])/ig;
-            // Thêm rel="noopener noreferrer" để bảo mật
+            // Fix Reverse Tabnabbing
             const textWithLinks = text.replace(urlRegex, url => `<a href="${url}" target="_blank" rel="noopener noreferrer" class="underline text-[#c19a6b] hover:text-[#a9885a] font-bold break-all">${url}</a>`);
-            
-            // Thêm 'rel' vào danh sách thuộc tính được cho phép của DOMPurify
+            // DOMPurify
             return DOMPurify.sanitize(textWithLinks, { 
                 ALLOWED_TAGS: ['a', 'b', 'i', 'br'], 
                 ALLOWED_ATTR: ['href', 'target', 'class', 'rel'] 
             });
         }
         
+        // --- UI FUNCTIONS ---
         function showScreen(screen) {
             [welcomeScreen, loginScreen, chatInterface].forEach(s => s.classList.add('hidden'));
             screen.classList.remove('hidden');
@@ -292,16 +333,21 @@
             }
         }
 
+        // --- BUTTON EVENTS ---
         deleteConversationButton.addEventListener('click', () => {
-            if(confirm("Bạn có chắc chắn muốn XÓA vĩnh viễn cuộc hội thoại này?")) {
+            document.getElementById('confirmation-modal').classList.remove('hidden');
+            document.getElementById('confirm-action-button').onclick = () => {
                 socket.emit('admin:deleteConversation', { roomId: currentRoomId });
-            }
+                document.getElementById('confirmation-modal').classList.add('hidden');
+            };
         });
+        document.getElementById('confirm-cancel-button').onclick = () => document.getElementById('confirmation-modal').classList.add('hidden');
 
         lockChatButton.addEventListener('click', () => {
              socket.emit('admin:toggleLock', { roomId: currentRoomId, isLocked: !isCurrentChatLocked });
         });
 
+        // --- RENDERING ---
         function renderMessages(messages) {
             messagesDiv.innerHTML = '';
             if (messages.length === 0) {
@@ -311,7 +357,6 @@
                 document.getElementById('admin-placeholder').classList.add('hidden');
                 messages.forEach(appendMessage);
             }
-            // Sử dụng requestAnimationFrame để cuộn mượt mà hơn setTimeout
             requestAnimationFrame(scrollToBottom);
         }
 
@@ -360,22 +405,17 @@
             wrapper.appendChild(bubble); wrapper.appendChild(time); messagesDiv.appendChild(wrapper);
         }
 
-        // --- Cập nhật logic cuộn: Sử dụng requestAnimationFrame ---
         function scrollToBottom() { 
             const container = document.getElementById('messages-container');
-            requestAnimationFrame(() => {
-                container.scrollTop = container.scrollHeight;
-            });
+            container.scrollTop = container.scrollHeight;
         }
 
+        // --- SEND LOGIC (Timeout & Validations) ---
         messageForm.addEventListener('submit', async e => {
             e.preventDefault();
             const text = messageInput.value.trim();
 
-            if (!socket.connected) {
-                showToast("Mất kết nối máy chủ. Vui lòng đợi...", "error");
-                return;
-            }
+            if (!socket.connected) { showToast("Mất kết nối. Vui lòng đợi...", "error"); return; }
             if ((!text && !selectedImageBase64) || !currentRoomId) return;
             if (isCurrentChatLocked && !isAdmin) { showToast("Cuộc trò chuyện đã bị khóa", "error"); return; }
             if (selectedImageBase64 && selectedImageBase64.length > 2 * 1024 * 1024) { showToast("Ảnh quá lớn.", "error"); return; }
@@ -396,7 +436,6 @@
             }, (response) => {
                 clearTimeout(timeout); 
                 sendBtn.disabled = false;
-                
                 if (response && response.status === 'success') {
                     messageInput.value = ''; selectedImageBase64 = null; imageInput.value = ''; imagePreviewContainer.style.display = 'none';
                 } else {
@@ -405,7 +444,9 @@
             });
         });
 
+        // --- INIT APP ---
         document.getElementById('start-chat-button').addEventListener('click', async () => {
+            try { if (typeof Tone !== 'undefined' && Tone.context.state !== 'running') await Tone.start(); } catch(e){}
             displayName = document.getElementById('display-name-input').value.trim() || 'Sư Huynh Vô Danh';
             localStorage.setItem('chatDisplayName', displayName);
             if (!currentUserId) { currentUserId = 'user_' + Date.now() + Math.random().toString(36).substring(2, 9); localStorage.setItem('chatUserId', currentUserId); }
@@ -438,6 +479,7 @@
         document.getElementById('logout-button').addEventListener('click', () => { localStorage.clear(); location.reload(); });
         document.getElementById('user-logout-button').addEventListener('click', () => { if(confirm("Thoát?")) { localStorage.clear(); location.reload(); }});
         
+        // Logic chuyển màn hình Mobile (Fix nút Back)
         document.getElementById('open-chat-list-button').addEventListener('click', () => {
             document.getElementById('chat-list-panel').classList.remove('hidden');
             document.getElementById('chat-window-panel').classList.add('hidden');
@@ -462,7 +504,14 @@
             askPermissionAndSubscribe();
         }
 
-        socket.on('newMessage', msg => { if (msg.roomId === currentRoomId) { appendMessage(msg); scrollToBottom(); } });
+        // --- SOCKET LISTENER (New Message) ---
+        socket.on('newMessage', msg => { 
+            if (msg.roomId === currentRoomId) { 
+                appendMessage(msg); 
+                scrollToBottom(); 
+                if(!msg.isAdmin && isAdmin) playNewMessageSound(); 
+            } 
+        });
         
         socket.on('chatList', rooms => {
             const container = document.getElementById('chat-list-container');
