@@ -550,11 +550,21 @@
         confirmCancelButton.addEventListener('click', hideConfirmationModal);
 
 
-        function initializeSocketConnection() {
-            if (socket) socket.disconnect();
-            socket = io(BACKEND_URL);
-            setupSocketListeners();
-        }
+		function initializeSocketConnection() {
+		            const adminToken = localStorage.getItem('adminToken'); // Lấy token
+		            
+		            if (socket) socket.disconnect(); 
+		            
+		            // Khởi tạo Socket.io và gửi token ngay trong phần auth
+		            socket = io(BACKEND_URL, {
+		                reconnection: true, 
+		                transports: ['websocket'],
+		                auth: { 
+		                    token: adminToken 
+		                }
+		            });
+		            setupSocketListeners();
+		}
 
         startChatButton.addEventListener('click', async () => {
 			// Dòng này rất quan trọng, nó xin phép trình duyệt để phát âm thanh
@@ -574,6 +584,7 @@
             isAdmin = false;
             initializeSocketConnection();
             showScreen(chatInterface);
+			setupUserView();
         });
 
         adminLoginPromptButton.addEventListener('click', () => showScreen(loginScreen));
@@ -1155,6 +1166,7 @@
 	<div class="hidden bg-orange-500 hover:bg-orange-700"></div>
 </body>
 </html>
+
 
 
 
