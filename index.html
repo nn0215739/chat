@@ -90,7 +90,7 @@
         </div>
 
         <div id="chat-interface" class="hidden h-full w-full flex-grow flex md:flex-row">
-            <div id="chat-list-panel" class="hidden md:flex flex-col w-full md:w-1/3 lg:w-1/4 bg-white border-r border-gray-200">
+            <div id="chat-list-panel" class="hidden md:flex flex-col w-full h-full md:w-1/3 lg:w-1/4 bg-white border-r border-gray-200 overflow-hidden">
                 <div class="p-4 border-b border-gray-200 flex items-center justify-between flex-shrink-0">
                     <div><h2 class="text-xl font-bold text-[#6B4F4F]">DANH SÁCH</h2></div>
                 </div>
@@ -155,7 +155,7 @@
 
         // --- DOM ---
         const socket = io(BACKEND_URL, { reconnection: true });
-        // Các biến DOM
+		// Các biến DOM cơ bản
         const appDiv = document.getElementById('app');
         const welcomeScreen = document.getElementById('welcome-screen');
         const loginScreen = document.getElementById('login-screen');
@@ -170,6 +170,11 @@
         const imageModal = document.getElementById('image-modal');
         const fullSizeImage = document.getElementById('full-size-image');
 
+        // --- CÁC NÚT ADMIN (Mới thêm lại) ---
+        const deleteConversationButton = document.getElementById('delete-conversation-button');
+        const lockChatButton = document.getElementById('lock-chat-button');
+        const lockChatText = document.getElementById('lock-chat-text');
+
         // State
         let isAdmin = false;
         let currentUserId = localStorage.getItem('chatUserId');
@@ -178,33 +183,25 @@
         let adminEmail = localStorage.getItem('adminEmail');
         let currentRoomId = null;
         let selectedImageBase64 = null;
+        let isCurrentChatLocked = false;
         
-        // --- XỬ LÝ ẢNH ---
+        // --- XỬ LÝ ẢNH (Giữ nguyên) ---
         imageInput.addEventListener('change', function(e) {
             const file = e.target.files[0];
             if (!file) return;
-
             const reader = new FileReader();
             reader.onload = function(event) {
-                // Resize ảnh đơn giản nếu quá lớn để tránh lỗi server
                 const img = new Image();
                 img.onload = function() {
                     const canvas = document.createElement('canvas');
-                    let width = img.width;
-                    let height = img.height;
-                    const maxSize = 800; // Max chiều rộng/cao là 800px
-
-                    if (width > height) {
-                        if (width > maxSize) { height *= maxSize / width; width = maxSize; }
-                    } else {
-                        if (height > maxSize) { width *= maxSize / height; height = maxSize; }
-                    }
-                    canvas.width = width;
-                    canvas.height = height;
+                    let width = img.width; let height = img.height;
+                    const maxSize = 800;
+                    if (width > height) { if (width > maxSize) { height *= maxSize / width; width = maxSize; } } 
+                    else { if (height > maxSize) { width *= maxSize / height; height = maxSize; } }
+                    canvas.width = width; canvas.height = height;
                     const ctx = canvas.getContext('2d');
                     ctx.drawImage(img, 0, 0, width, height);
-                    
-                    selectedImageBase64 = canvas.toDataURL('image/jpeg', 0.7); // Nén JPEG 70%
+                    selectedImageBase64 = canvas.toDataURL('image/jpeg', 0.7);
                     imagePreview.src = selectedImageBase64;
                     imagePreviewContainer.style.display = 'block';
                 }
@@ -220,15 +217,8 @@
         });
 
         // --- CORE FUNCTIONS ---
-        // (Giữ nguyên các hàm linkify, toast, notification...)
-		function linkify(text) {
+        function linkify(text) {
             const urlRegex = /(\b(https?|ftp|file):\/\/[-A-Z0-9+&@#\/%?=~_|!:,.;]*[-A-Z0-9+&@#\/%=~_|])/ig;
-            
-            // SỬA TẠI ĐÂY:
-            // Thay class "text-blue-600" thành "text-[#c19a6b]" (Màu vàng nâu chủ đạo)
-            // Hoặc dùng "text-yellow-600" nếu muốn vàng tươi hơn.
-            // Mình thêm 'font-bold' để link đậm hơn cho dễ nhìn.
-            
             return text.replace(urlRegex, url => `<a href="${url}" target="_blank" class="underline text-[#c19a6b] hover:text-[#a9885a] font-bold break-all">${url}</a>`);
         }
         
@@ -237,6 +227,50 @@
             screen.classList.remove('hidden');
             screen.classList.add('flex');
         }
+
+        // --- ADMIN LOGIC (Xóa / Khóa) ---
+        function updateAdminControls(show) {
+            if (!isAdmin) {
+                deleteConversationButton.classList.add('hidden');
+                lockChatButton.classList.add('hidden');
+                return;
+            }
+            const isUserRoom = show && currentRoomId !== ADMIN_ONLY_ROOM_ID;
+            if (isUserRoom) {
+                deleteConversationButton.classList.remove('hidden');
+                lockChatButton.classList.remove('hidden');
+            } else {
+                deleteConversationButton.classList.add('hidden');
+                lockChatButton.classList.add('hidden');
+            }
+        }
+
+        function updateLockUI() {
+            if (isCurrentChatLocked) {
+                lockChatText.textContent = 'Mở khoá';
+                lockChatButton.classList.remove('bg-yellow-500', 'hover:bg-yellow-600');
+                lockChatButton.classList.add('bg-green-500', 'hover:bg-green-600');
+                messageInput.disabled = true;
+                messageInput.placeholder = "Đã bị khóa";
+            } else {
+                lockChatText.textContent = 'Khoá';
+                lockChatButton.classList.remove('bg-green-500', 'hover:bg-green-600');
+                lockChatButton.classList.add('bg-yellow-500', 'hover:bg-yellow-600');
+                messageInput.disabled = false;
+                messageInput.placeholder = "Nhập tin nhắn...";
+            }
+        }
+
+        deleteConversationButton.addEventListener('click', () => {
+            if(confirm("Bạn có chắc chắn muốn XÓA vĩnh viễn cuộc hội thoại này?")) {
+                socket.emit('admin:deleteConversation', { roomId: currentRoomId });
+            }
+        });
+
+        lockChatButton.addEventListener('click', () => {
+             socket.emit('admin:toggleLock', { roomId: currentRoomId, isLocked: !isCurrentChatLocked });
+        });
+
 
         // --- SOCKET & CHAT LOGIC ---
         function renderMessages(messages) {
@@ -261,19 +295,16 @@
             const bubble = document.createElement('div');
             bubble.className = `max-w-[85%] sm:max-w-md px-4 py-2 rounded-2xl break-words relative group ${msg.isAdmin ? 'bg-[#6B4F4F] text-white shadow-md' : 'bg-white shadow-sm'}`;
 
-            // Tên người gửi
             const nameSpan = document.createElement('div');
             nameSpan.className = `font-bold text-xs block mb-1 ${msg.isAdmin ? 'text-yellow-200' : 'text-gray-900'}`;
             nameSpan.innerHTML = msg.isAdmin ? `★ ${msg.displayName || 'Quản trị'}` : (msg.displayName || 'Sư Huynh');
 
-            // Nội dung
             const contentDiv = document.createElement('div');
             if (msg.text) contentDiv.innerHTML = linkify(msg.text);
             
             bubble.appendChild(nameSpan);
             bubble.appendChild(contentDiv);
 
-            // Hiển thị ảnh nếu có
             if (msg.image) {
                 const imgElement = document.createElement('img');
                 imgElement.src = msg.image;
@@ -285,7 +316,16 @@
                 bubble.appendChild(imgElement);
             }
 
-            // Thời gian
+            // Xóa tin nhắn lẻ (Admin only)
+            if (isAdmin && currentRoomId) {
+                const deleteMsgBtn = document.createElement('button');
+                deleteMsgBtn.innerHTML = '×';
+                const pos = msg.isAdmin ? '-left-2' : '-right-2';
+                deleteMsgBtn.className = `absolute -top-2 ${pos} bg-red-500 text-white rounded-full w-5 h-5 flex items-center justify-center text-xs opacity-0 group-hover:opacity-100 transition shadow-sm`;
+                deleteMsgBtn.onclick = (e) => { e.stopPropagation(); if(confirm('Xóa tin này?')) socket.emit('admin:deleteMessage', { messageId: msg._id, roomId: currentRoomId }); };
+                bubble.appendChild(deleteMsgBtn);
+            }
+
             const time = document.createElement('div');
             time.className = `text-xs text-gray-500 mt-1 ${msg.isAdmin ? 'text-right' : 'text-left'}`;
             time.textContent = new Date(msg.timestamp).toLocaleTimeString('vi-VN', {hour:'2-digit', minute:'2-digit'});
@@ -300,11 +340,10 @@
         messageForm.addEventListener('submit', async e => {
             e.preventDefault();
             const text = messageInput.value.trim();
-            
             if ((!text && !selectedImageBase64) || !currentRoomId) return;
+            if (isCurrentChatLocked && !isAdmin) { alert("Cuộc trò chuyện đã bị khóa"); return; }
 
             document.getElementById('send-message-button').disabled = true;
-
             let senderName = isAdmin ? ((currentRoomId === ADMIN_ONLY_ROOM_ID) ? adminEmail : adminDisplayName) : displayName;
 
             socket.emit('sendMessage', {
@@ -327,34 +366,21 @@
             });
         });
 
-        // --- INIT & EVENTS (Rút gọn) ---
-        // Phần login, join room, render list... giữ nguyên logic cũ nhưng cập nhật biến DOM
-        
-		document.getElementById('start-chat-button').addEventListener('click', async () => {
-		    // --- SỬA ĐOẠN NÀY ---
-		    try {
-		        if (typeof Tone !== 'undefined' && Tone.context.state !== 'running') {
-		            await Tone.start();
-		        }
-		    } catch (e) {
-		        console.warn("Lỗi khởi động âm thanh:", e);
-		        // Không làm gì cả, cứ cho chạy tiếp để người dùng còn chat được
-		    }
-		    // --------------------
-		
-		    displayName = document.getElementById('display-name-input').value.trim() || 'Sư Huynh Vô Danh';
-		    localStorage.setItem('chatDisplayName', displayName);
-		    if (!currentUserId) {
-		        currentUserId = 'user_' + Date.now() + Math.random().toString(36).substring(2, 9);
-		        localStorage.setItem('chatUserId', currentUserId);
-		    }
-		    isAdmin = false;
-		    askPermissionAndSubscribe();
-		    showScreen(chatInterface);
-		    setupUserView();
-		});
+        // --- EVENT HANDLERS ---
+        document.getElementById('start-chat-button').addEventListener('click', async () => {
+            try { if (typeof Tone !== 'undefined' && Tone.context.state !== 'running') await Tone.start(); } catch(e){}
+            displayName = document.getElementById('display-name-input').value.trim() || 'Sư Huynh Vô Danh';
+            localStorage.setItem('chatDisplayName', displayName);
+            if (!currentUserId) {
+                currentUserId = 'user_' + Date.now() + Math.random().toString(36).substring(2, 9);
+                localStorage.setItem('chatUserId', currentUserId);
+            }
+            isAdmin = false;
+            askPermissionAndSubscribe();
+            showScreen(chatInterface);
+            setupUserView();
+        });
 
-        // Admin Login
         document.getElementById('admin-login-prompt-button').addEventListener('click', () => showScreen(loginScreen));
         document.getElementById('login-form').addEventListener('submit', async e => {
             e.preventDefault();
@@ -377,21 +403,25 @@
 
         document.getElementById('logout-button').addEventListener('click', () => { localStorage.clear(); location.reload(); });
         document.getElementById('user-logout-button').addEventListener('click', () => { if(confirm("Thoát?")) { localStorage.clear(); location.reload(); }});
+        
         document.getElementById('open-chat-list-button').addEventListener('click', () => {
             document.getElementById('chat-list-panel').classList.remove('hidden');
             document.getElementById('chat-window-panel').classList.add('hidden');
+            document.getElementById('chat-window-panel').classList.remove('flex'); // Tắt flex để ẩn hẳn
         });
 
         function setupUserView() {
             document.getElementById('chat-list-panel').classList.add('hidden');
             document.getElementById('online-admins-panel').classList.add('hidden');
-			// --- THÊM 2 DÒNG NÀY ĐỂ HIỆN KHUNG CHAT TRÊN ĐIỆN THOẠI ---
+            
             const chatWindow = document.getElementById('chat-window-panel');
             chatWindow.classList.remove('hidden');
-            chatWindow.classList.add('flex');
-            // ---------------------------------------------------------
+            chatWindow.classList.add('flex'); // Kích hoạt Flexbox
+            
             document.getElementById('chat-header-title').textContent = displayName;
             currentRoomId = currentUserId;
+            
+            updateAdminControls(false); // Ẩn nút xóa với user
             socket.emit('user:join', { userId: currentUserId, displayName: displayName });
         }
 
@@ -402,41 +432,94 @@
             askPermissionAndSubscribe();
         }
 
-        // Socket Listeners
+        // --- SOCKET EVENTS ---
         socket.on('newMessage', msg => { if (msg.roomId === currentRoomId) { appendMessage(msg); scrollToBottom(); } });
+        
+        // Sửa lại logic click vào room để hiển thị đúng giao diện
         socket.on('chatList', rooms => {
             const container = document.getElementById('chat-list-container');
             container.innerHTML = '';
             rooms.forEach(room => {
                 const div = document.createElement('div');
                 div.className = `p-4 border-b hover:bg-gray-100 cursor-pointer ${room._id === currentRoomId ? 'bg-[#e6dacb]' : ''}`;
-                div.innerHTML = `<p class="font-bold text-[#6B4F4F]">${room.displayName}</p><p class="text-sm truncate text-gray-500">${room.lastMessage}</p>`;
+                if(room.isSpecial) div.classList.add('bg-yellow-50');
+                if(room.hasUnreadAdmin) div.classList.add('font-bold'); // Highlight chưa đọc
+
+                div.innerHTML = `
+                    <div class="flex justify-between">
+                        <p class="font-bold text-[#6B4F4F] ${room.isSpecial ? 'text-red-600' : ''}">${room.displayName}</p>
+                        ${!room.isSpecial && room.hasUnreadAdmin ? '<span class="w-2 h-2 bg-red-500 rounded-full"></span>' : ''}
+                    </div>
+                    <p class="text-sm truncate text-gray-500">${room.lastMessage || '...'}</p>`;
+                
                 div.onclick = () => {
-					currentRoomId = room._id;
+                    currentRoomId = room._id;
+                    isCurrentChatLocked = room.isClosed;
                     document.getElementById('chat-header-title').textContent = room.displayName;
                     document.querySelectorAll('#chat-list-container > div').forEach(el => el.classList.remove('bg-[#e6dacb]'));
                     div.classList.add('bg-[#e6dacb]');
+                    
                     socket.emit('admin:viewRoom', room._id);
                     
+                    // Nếu là mobile thì chuyển màn hình
                     if(window.innerWidth < 768) {
                         document.getElementById('chat-list-panel').classList.add('hidden');
-                        
-                        // SỬA TẠI ĐÂY: Thêm class 'flex' để giao diện hiển thị đúng
                         const chatWindow = document.getElementById('chat-window-panel');
                         chatWindow.classList.remove('hidden');
-                        chatWindow.classList.add('flex'); // <--- QUAN TRỌNG
+                        chatWindow.classList.add('flex');
                     }
                 };
                 container.appendChild(div);
             });
         });
-        socket.on('roomDetails', ({messages}) => renderMessages(messages));
+
+        // Sửa: Thêm logic cập nhật nút Admin khi vào phòng
+        socket.on('roomDetails', ({messages, isClosed}) => {
+            isCurrentChatLocked = isClosed;
+            renderMessages(messages);
+            if(isAdmin) {
+                updateAdminControls(true); // Hiện nút Xóa/Khóa
+                updateLockUI();
+            } else {
+                updateAdminControls(false);
+            }
+        });
+
+        socket.on('chat:locked', ({ roomId, isLocked }) => {
+            if(currentRoomId === roomId) {
+                isCurrentChatLocked = isLocked;
+                if(isAdmin) updateLockUI();
+                else {
+                    if(isLocked) { messageInput.disabled=true; messageInput.placeholder="Đã bị khóa"; }
+                    else { messageInput.disabled=false; messageInput.placeholder="Nhập tin nhắn..."; }
+                }
+            }
+        });
+        
+        socket.on('messageDeleted', (id) => {
+            const el = document.getElementById('message-'+id);
+            if(el) el.remove();
+        });
+
+        socket.on('conversationDeleted', (id) => {
+            if(isAdmin) {
+                if(currentRoomId === id) { 
+                    messagesDiv.innerHTML = ''; 
+                    document.getElementById('admin-placeholder').classList.remove('hidden');
+                    updateAdminControls(false);
+                }
+                // Xóa khỏi danh sách sẽ được cập nhật tự động qua socket chatList
+            } else {
+                alert("Cuộc hội thoại đã kết thúc.");
+                location.reload();
+            }
+        });
         
         // Auto Login Check
         if(localStorage.getItem('adminToken')) { isAdmin=true; adminDisplayName=localStorage.getItem('adminDisplayName'); adminEmail=localStorage.getItem('adminEmail'); setupAdminView(); showScreen(chatInterface); }
         else if(localStorage.getItem('chatUserId')) { isAdmin=false; currentUserId=localStorage.getItem('chatUserId'); displayName=localStorage.getItem('chatDisplayName'); setupUserView(); showScreen(chatInterface); }
 
-        // --- WEB PUSH SUBSCRIPTION (Giữ nguyên) ---
+        // Web Push (Giữ nguyên)
         function urlBase64ToUint8Array(base64String) {
             const padding = '='.repeat((4 - base64String.length % 4) % 4);
             const base64 = (base64String + padding).replace(/-/g, '+').replace(/_/g, '/');
@@ -459,6 +542,7 @@
     </script>
 </body>
 </html>
+
 
 
 
