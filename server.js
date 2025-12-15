@@ -143,32 +143,48 @@ function sendToTelegram(room, messageText, imageBase64) {
     }
 }
 
-// Xử lý tin nhắn đến từ Telegram (Text hoặc Ảnh)
+// Xử lý tin nhắn đến từ Telegram (PHIÊN BẢN THÔNG MINH - KHÔNG XUNG ĐỘT)
 bot.on('message', async (msg) => {
+    // 1. Chỉ nhận tin từ Admin ID đã cài đặt
     if (msg.chat.id.toString() !== TELEGRAM_ADMIN_ID.toString()) return;
     
-    // Kiểm tra reply
+    // 2. Chỉ xử lý tin nhắn Reply (Trả lời)
     if (!msg.reply_to_message) return;
 
-    // Lấy caption hoặc text của tin nhắn gốc để tìm RoomID
+    // Lấy nội dung tin nhắn gốc để tìm RoomID
     const originalText = msg.reply_to_message.text || msg.reply_to_message.caption;
     if (!originalText) return;
 
+    // Regex tìm RoomID
     const match = originalText.match(/RoomID: (.*)/); 
 
     if (match && match[1]) {
         const roomId = match[1].trim();
-        let replyText = msg.text || msg.caption || ""; // Caption nếu là ảnh, Text nếu là tin thường
+        
+        // --- BƯỚC KIỂM TRA QUAN TRỌNG NHẤT (THÊM MỚI) ---
+        // Trước khi xử lý, kiểm tra xem RoomID này có tồn tại trong Database của BOT NÀY không.
+        // Nếu không tìm thấy -> Nghĩa là tin nhắn này thuộc về Bot AI (Supabase) -> BỎ QUA NGAY.
+        try {
+            const roomExists = await ChatRoom.findById(roomId);
+            if (!roomExists) {
+                console.log(`⚠️ Bỏ qua tin nhắn cho RoomID: ${roomId} (Không tìm thấy trong MongoDB, có thể là của Bot AI).`);
+                return; // Dừng lại, không làm gì cả, không báo lỗi.
+            }
+        } catch (err) {
+            // Nếu format ID bị sai (ví dụ Bot kia dùng UUID còn Bot này dùng ObjectId) -> Cũng bỏ qua luôn
+            console.log("⚠️ Định dạng RoomID khác hệ thống. Bỏ qua.");
+            return;
+        }
+        // ------------------------------------------------
+
+        let replyText = msg.text || msg.caption || ""; 
         let replyImage = null;
 
         try {
-            // Xử lý nếu Admin gửi ảnh từ Telegram
+            // Xử lý nếu Admin gửi ảnh
             if (msg.photo) {
-                // Lấy ảnh chất lượng cao nhất
                 const fileId = msg.photo[msg.photo.length - 1].file_id;
                 const fileLink = await bot.getFileLink(fileId);
-                
-                // Tải ảnh về và chuyển thành Base64
                 const response = await fetch(fileLink);
                 const arrayBuffer = await response.arrayBuffer();
                 const buffer = Buffer.from(arrayBuffer);
@@ -194,10 +210,10 @@ bot.on('message', async (msg) => {
             };
             await ChatRoom.findByIdAndUpdate(roomId, roomUpdate);
 
-            // Gửi Socket
+            // Gửi Socket về Web
             io.to(roomId).to('admin_room').emit('newMessage', newMessage);
             
-            // Cập nhật list
+            // Cập nhật list chat cho Admin Web
             const rooms = await ChatRoom.find().sort({ timestamp: -1 });
             const adminRoomInfo = { 
                 _id: ADMIN_ONLY_ROOM_ID, 
@@ -208,7 +224,7 @@ bot.on('message', async (msg) => {
             };
             io.to('admin_room').emit('chatList', [adminRoomInfo, ...rooms]);
 
-            // Web Push
+            // Gửi Web Push Notification
             const room = await ChatRoom.findById(roomId);
             if (room && room.pushSubscription) {
                  const payload = JSON.stringify({
@@ -222,10 +238,12 @@ bot.on('message', async (msg) => {
 
         } catch (error) {
             console.error("Error sending reply from Telegram:", error);
-            bot.sendMessage(TELEGRAM_ADMIN_ID, "❌ Lỗi: Không thể xử lý tin nhắn (có thể ảnh quá lớn).");
+            // Chỉ báo lỗi nếu thực sự là lỗi hệ thống, không báo lỗi RoomID nữa
         }
     } else {
-         bot.sendMessage(TELEGRAM_ADMIN_ID, "⚠️ Không tìm thấy RoomID. Vui lòng Reply đúng tin nhắn.");
+         // --- QUAN TRỌNG: ĐÃ XÓA DÒNG GỬI TIN NHẮN BÁO LỖI ---
+         // Nếu không thấy RoomID (do reply nhầm tin của Bot khác) -> IM LẶNG LUÔN.
+         console.log("Bỏ qua tin nhắn không có RoomID.");
     }
 });
 
@@ -490,3 +508,4 @@ io.on('connection', (socket) => {
 server.listen(PORT, () => {
   console.log(`Server is running on port ${PORT}`);
 });
+
